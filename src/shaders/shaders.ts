@@ -41,6 +41,9 @@ export const constants = {
 
     lightRadius: 10,
 
+    maxResolutionWidth: 1920,
+    maxResolutionHeight: 1080,
+
     presentationFormat: 'bgra8unorm'
 };
 

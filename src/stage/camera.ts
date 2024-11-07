@@ -1,9 +1,9 @@
-import { Mat4, mat4, Vec3, vec3 } from "wgpu-matrix";
+import { Mat4, mat4, Vec2, vec2, Vec3, vec3 } from "wgpu-matrix";
 import { toRadians } from "../math_util";
 import { device, canvas, fovYDegrees, aspectRatio } from "../renderer";
 
 class CameraUniforms {
-    readonly buffer = new ArrayBuffer(16 * 4 * 4 + 16 + 16);
+    readonly buffer = new ArrayBuffer(368);
     private readonly floatView = new Float32Array(this.buffer);
 
     set viewProjMat(mat: Float32Array) {
@@ -30,15 +30,55 @@ class CameraUniforms {
         }
     }
 
-    set nearFar(nearfar: Vec3) {
+    set front(front: Vec3) {
+        for (let i = 0; i < 3; i++) {
+            this.floatView[i + 64] = front[i];
+        }
+    }
+
+    set up(up: Vec3) {
+        for (let i = 0; i < 3; i++) {
+            this.floatView[i + 68] = up[i];
+        }
+    }
+
+    set right(right: Vec3) {
+        for (let i = 0; i < 3; i++) {
+            this.floatView[i + 72] = right[i];
+        }
+    }
+
+    set depth(depth: f32) {
+        this.floatView[75] = depth;
+    }
+
+    set nearFar(nearFar: Vec2) {
         for (let i = 0; i < 2; i++) {
-            this.floatView[i + 64] = nearfar[i];
+            this.floatView[i + 76] = nearFar[i];
+        }
+    }
+
+    set resolution(resolution: Vec2) {
+        for (let i = 0; i < 2; i++) {
+            this.floatView[i + 78] = resolution[i];
+        }
+    }
+
+    set pixelLength(pixelLength: Vec2) {
+        for (let i = 0; i < 2; i++) {
+            this.floatView[i + 80] = pixelLength[i];
         }
     }
 
     set cameraPos(cameraPos: Vec3) {
-        for (let i = 0; i < 2; i++) {
-            this.floatView[i + 68] = cameraPos[i];
+        for (let i = 0; i < 3; i++) {
+            this.floatView[i + 84] = cameraPos[i];
+        }
+    }
+
+    set seed(seed: Vec3) {
+        for (let i = 0; i < 3; i++) {
+            this.floatView[i + 88] = seed[i];
         }
     }
 }
@@ -61,7 +101,7 @@ export class Camera {
     static readonly farPlane = 1000;
 
     rayDepth: number = 8;
-    targetIteration: number = 100;
+    samples: number = 16;
 
     keys: { [key: string]: boolean } = {};
 
@@ -75,7 +115,13 @@ export class Camera {
         this.projMat = mat4.perspective(toRadians(fovYDegrees), aspectRatio, Camera.nearPlane, Camera.farPlane);
         this.uniforms.projMat = this.projMat;
         this.uniforms.projInvMat = mat4.inverse(this.projMat);
-        this.uniforms.nearFar = vec3.create(Camera.nearPlane, Camera.farPlane, 0);
+        this.uniforms.nearFar = vec2.create(Camera.nearPlane, Camera.farPlane);        
+        this.uniforms.resolution = vec2.create(canvas.width, canvas.height);
+
+        let yscaled = Math.tan(fovYDegrees * (Math.PI / 180));
+        let xscaled = (yscaled * canvas.width) / canvas.height;
+        this.uniforms.pixelLength = vec2.create(2 * xscaled / canvas.width,
+                                                2 * yscaled / canvas.height);
 
         this.rotateCamera(0, 0); // set initial camera vectors
 
@@ -166,8 +212,18 @@ export class Camera {
         const viewProjMat = mat4.mul(this.projMat, viewMat);
         this.uniforms.viewProjMat = viewProjMat;
         this.uniforms.viewMat = viewMat;
+        this.uniforms.front = this.cameraFront;
+        this.uniforms.up = this.cameraUp;
+        this.uniforms.right = this.cameraRight;
         this.uniforms.cameraPos = this.cameraPos;
+        this.uniforms.seed = vec3.create(0xffffffff * Math.random(), 0xffffffff * Math.random(), 0xffffffff * Math.random());
 
+        device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
+    }
+
+    updateDepth(depth: number) {
+        this.uniforms.depth = depth;
+        
         device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
     }
 }

@@ -1,20 +1,39 @@
 struct Light {
-    pos: vec3f,
-    color: vec3f
+    pos : vec3f,
+    color : vec3f
 }
 
 struct LightSet {
-    numLights: u32,
-    lights: array<Light>
+    numLights : u32,
+    lights : array<Light>
 }
 
 struct Cluster {
-    numLights: u32,
-    lights: array<u32, ${maxNumLightsPerCluster}>
+    numLights : u32,
+    lights : array<u32, ${maxNumLightsPerCluster}>
 }
 
 struct ClusterSet {
-    clusters: array<Cluster, ${numClusterX} * ${numClusterY} * ${numClusterZ}>
+    clusters : array<Cluster, ${numClusterX} * ${numClusterY} * ${numClusterZ}>
+}
+
+struct Ray
+{
+    origin : vec3f,
+    direction : vec3f,
+}
+
+struct PathSegment
+{
+    ray : Ray,
+    color : vec3f,
+    pixelIndex : u32,
+    remainingBounces : u32,
+}
+
+struct PathSegments
+{
+    segments : array<PathSegment, ${maxResolutionWidth} * ${maxResolutionHeight}>
 }
 
 struct CameraUniforms {
@@ -22,8 +41,15 @@ struct CameraUniforms {
     view : mat4x4f,
     proj : mat4x4f,
     projInv : mat4x4f,
+    front : vec3<f32>,
+    up : vec3<f32>,
+    right : vec3<f32>,
+    depth : f32,
     nearFar : vec2<f32>,
+    resolution : vec2<f32>,
+    pixelLength : vec2<f32>,
     cameraPos : vec3<f32>,
+    seed : vec3u,
 }
 
 // this special attenuation function ensures lights don't affect geometry outside the maximum light radius
