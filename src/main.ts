@@ -50,7 +50,7 @@ function setRenderer(mode: string) {
 }
 
 const renderModes = { naive: 'naive', clusteredDeferred: 'clustered deferred', pathtracer: 'pathtracer' };
-let renderModeController = gui.add({ mode: renderModes.naive }, 'mode', renderModes);
+let renderModeController = gui.add({ mode: renderModes.pathtracer }, 'mode', renderModes);
 renderModeController.onChange(setRenderer);
 
 setRenderer(renderModeController.getValue());

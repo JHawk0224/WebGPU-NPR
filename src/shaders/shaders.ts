@@ -11,6 +11,11 @@ import clusteredDeferredFullscreenFragRaw from './clustered_deferred_fullscreen.
 
 import clusteringComputeRaw from './clustering.cs.wgsl?raw';
 
+import pathtracerVertRaw from './pathtracer.vs.wgsl?raw';
+import pathtracerFragRaw from './pathtracer.fs.wgsl?raw';
+
+import pathtracerComputeRaw from './pathtracer.cs.wgsl?raw';
+
 // CONSTANTS (for use in shaders)
 // =================================
 
@@ -21,6 +26,7 @@ export const constants = {
     bindGroup_model: 1,
     bindGroup_material: 2,
     bindGroup_deferred: 3,
+    bindGroup_pathtracer: 1,
 
     moveLightsWorkgroupSize: 128,
     maxNumLightsPerCluster: 1000,
@@ -58,3 +64,8 @@ export const clusteredDeferredFullscreenVertSrc: string = processShaderRaw(clust
 export const clusteredDeferredFullscreenFragSrc: string = processShaderRaw(clusteredDeferredFullscreenFragRaw);
 
 export const clusteringComputeSrc: string = processShaderRaw(clusteringComputeRaw);
+
+export const pathtracerVertSrc: string = processShaderRaw(pathtracerVertRaw);
+export const pathtracerFragSrc: string = processShaderRaw(pathtracerFragRaw);
+
+export const pathtracerComputeSrc: string = processShaderRaw(pathtracerComputeRaw);

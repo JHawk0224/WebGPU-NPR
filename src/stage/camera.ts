@@ -60,6 +60,9 @@ export class Camera {
     static readonly nearPlane = 0.1;
     static readonly farPlane = 1000;
 
+    rayDepth: number = 8;
+    targetIteration: number = 100;
+
     keys: { [key: string]: boolean } = {};
 
     constructor () {
