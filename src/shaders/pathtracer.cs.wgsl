@@ -3,6 +3,8 @@
 
 @group(${bindGroup_pathtracer}) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(${bindGroup_pathtracer}) @binding(1) var<storage, read_write> pathSegments : PathSegments;
+@group(${bindGroup_pathtracer}) @binding(2) var<storage, read_write> geoms : Geoms;
+@group(${bindGroup_pathtracer}) @binding(3) var<storage, read_write> intersections : Intersections;
 
 // RNG code from https://github.com/webgpu/webgpu-samples/blob/main/sample/cornell/common.wgsl
 // A psuedo random number. Initialized with init_rand(), updated with rand().
@@ -28,7 +30,7 @@ fn rand() -> f32 {
 
 @compute
 @workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
-fn generate_ray(@builtin(global_invocation_id) globalIdx: vec3u) {
+fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
     if (globalIdx.x < u32(cameraUniforms.resolution[0]) && globalIdx.y < u32(cameraUniforms.resolution[1])) {
         let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
 
@@ -54,8 +56,52 @@ fn generate_ray(@builtin(global_invocation_id) globalIdx: vec3u) {
 
 @compute
 @workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
-fn compute_intersections(@builtin(global_invocation_id) globalIdx: vec3u) {
+fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
     if (globalIdx.x < u32(cameraUniforms.resolution[0]) && globalIdx.y < u32(cameraUniforms.resolution[1])) {
+        let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
+
+        let pathSegment = &pathSegments.segments[index];
+
+        var closestHit : HitInfo;
+        var tempHit : HitInfo;
+        var tMin = 10000000000.0; // arbitrary high number for max float
+        var hitGeomIndex = -1;
+
+        // naive parse through global geoms
+        for (var i = 0; i < i32(geoms.geomsSize); i++)
+        {
+            let geom = &geoms.geoms[i];
+
+            if (geom.geomType == 0)
+            {
+                tempHit = boxIntersectionTest(geom, pathSegment.ray);
+            }
+            else if (geom.geomType == 1)
+            {
+                tempHit = sphereIntersectionTest(geom, pathSegment.ray);
+            }
+
+            // Compute the minimum t from the intersection tests to determine what
+            // scene geometry object was hit first.
+            if (tempHit.dist > 0.0 && tMin > tempHit.dist)
+            {
+                closestHit = tempHit;
+                hitGeomIndex = i;
+            }
+        }
+
+        if (hitGeomIndex == -1)
+        {
+            intersections.intersections[index].t = -1.0;
+            intersections.intersections[index].materialId = -1;
+        }
+        else
+        {
+            // The ray hits something
+            intersections.intersections[index].t = closestHit.dist;
+            intersections.intersections[index].materialId = geoms.geoms[hitGeomIndex].materialid;
+            intersections.intersections[index].surfaceNormal = closestHit.normal;
+        }
     }
 }
 

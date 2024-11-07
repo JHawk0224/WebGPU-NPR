@@ -12,6 +12,8 @@ export class Pathtracer extends renderer.Renderer {
     emptyBuffer: GPUBuffer;
 
     pathSegmentsStorageBuffer: GPUBuffer;
+    geomsStorageBuffer: GPUBuffer;
+    intersectionsStorageBuffer: GPUBuffer;
 
     pathtracerRenderTexture: GPUTexture;
 
@@ -80,6 +82,18 @@ export class Pathtracer extends renderer.Renderer {
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
 
+        this.geomsStorageBuffer = renderer.device.createBuffer({
+            label: "geoms",
+            size: 16 + 240 * 2, // 16 + 240 * number of geoms
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+        });
+
+        this.intersectionsStorageBuffer = renderer.device.createBuffer({
+            label: "intersections",
+            size: 32 * shaders.constants.maxResolutionWidth * shaders.constants.maxResolutionHeight,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+        });
+
         this.pathtracerRenderTexture = renderer.device.createTexture({
             label: "render texture",
             size: {
@@ -102,6 +116,16 @@ export class Pathtracer extends renderer.Renderer {
                     binding: 1,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" }
+                },
+                { // geoms
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" }
+                },
+                { // intersections
+                    binding: 3,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" }
                 }
             ]
         });
@@ -117,6 +141,14 @@ export class Pathtracer extends renderer.Renderer {
                 {
                     binding: 1,
                     resource: { buffer: this.pathSegmentsStorageBuffer },
+                },
+                {
+                    binding: 2,
+                    resource: { buffer: this.geomsStorageBuffer },
+                },
+                {
+                    binding: 3,
+                    resource: { buffer: this.intersectionsStorageBuffer },
                 }
             ]
         });
@@ -135,7 +167,7 @@ export class Pathtracer extends renderer.Renderer {
                     label: "pathtracer compute shader",
                     code: shaders.pathtracerComputeSrc
                 }),
-                entryPoint: "generate_ray"
+                entryPoint: "generateRay"
             }
         });
 
@@ -153,7 +185,7 @@ export class Pathtracer extends renderer.Renderer {
                     label: "pathtracer compute shader",
                     code: shaders.pathtracerComputeSrc
                 }),
-                entryPoint: "compute_intersections"
+                entryPoint: "computeIntersections"
             }
         });
 
@@ -238,7 +270,7 @@ export class Pathtracer extends renderer.Renderer {
                 this.camera.updateDepth(this.camera.rayDepth - d);
 
                 const computePass = encoder.beginComputePass();
-                
+
                 // Generate camera rays
                 computePass.setPipeline(this.pathtracerComputePipelineGenerateRay);
                 computePass.setBindGroup(0, this.sceneUniformsBindGroup);
