@@ -1,6 +1,9 @@
 import { Camera } from '../stage/camera';
 
 import commonRaw from './common.wgsl?raw';
+import intersectionRaw from './intersection.wgsl?raw';
+import integratorRaw from './integrator.wgsl?raw';
+import samplerRaw from './sampler.wgsl?raw';
 
 import naiveVertRaw from './naive.vs.wgsl?raw';
 import naiveFragRaw from './naive.fs.wgsl?raw';
@@ -54,9 +57,16 @@ function evalShaderRaw(raw: string) {
 }
 
 const commonSrc: string = evalShaderRaw(commonRaw);
+const intersectionSrc: string = evalShaderRaw(intersectionRaw);
+const integratorSrc: string = evalShaderRaw(integratorRaw);
+const samplerSrc: string = evalShaderRaw(samplerRaw);
 
 function processShaderRaw(raw: string) {
-    return commonSrc + evalShaderRaw(raw);
+    return commonSrc + intersectionSrc + evalShaderRaw(raw);
+}
+
+function processShaderRawPT(raw: string) {
+    return commonSrc + intersectionSrc + integratorSrc + samplerSrc + evalShaderRaw(raw);
 }
 
 export const naiveVertSrc: string = processShaderRaw(naiveVertRaw);
@@ -71,4 +81,4 @@ export const clusteringComputeSrc: string = processShaderRaw(clusteringComputeRa
 export const pathtracerVertSrc: string = processShaderRaw(pathtracerVertRaw);
 export const pathtracerFragSrc: string = processShaderRaw(pathtracerFragRaw);
 
-export const pathtracerComputeSrc: string = processShaderRaw(pathtracerComputeRaw);
+export const pathtracerComputeSrc: string = processShaderRawPT(pathtracerComputeRaw);

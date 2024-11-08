@@ -1,4 +1,4 @@
-import { Mat4, mat4, Vec2, vec2, Vec3, vec3, vec4 } from "wgpu-matrix";
+import { mat4, vec4 } from "wgpu-matrix";
 import * as renderer from '../renderer';
 import * as shaders from '../shaders/shaders';
 import { Stage } from '../stage/stage';

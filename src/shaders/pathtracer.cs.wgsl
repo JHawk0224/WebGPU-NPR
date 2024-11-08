@@ -29,38 +29,6 @@ fn rand() -> f32 {
   return f32(rnd.x ^ rnd.y) / f32(0xffffffff);
 }
 
-fn randomDirectionInHemisphere(normal: vec3f) -> vec3f
-{
-    let up = sqrt(rand()); // cos(theta)
-    let over = sqrt(1.0 - up * up); // sin(theta)
-    let around = rand() * TWO_PI;
-
-    // Find a direction that is not the normal based off of whether or not the
-    // normal's components are all equal to sqrt(1/3) or whether or not at
-    // least one component is less than sqrt(1/3). Learned this trick from
-    // Peter Kutz.
-
-    var directionNotNormal: vec3f;
-    if (abs(normal.x) < SQRT_OF_ONE_THIRD)
-    {
-        directionNotNormal = vec3f(1, 0, 0);
-    }
-    else if (abs(normal.y) < SQRT_OF_ONE_THIRD)
-    {
-        directionNotNormal = vec3f(0, 1, 0);
-    }
-    else
-    {
-        directionNotNormal = vec3f(0, 0, 1);
-    }
-
-    // Use not-normal direction to generate two perpendicular directions
-    let perpendicularDirection1 = normalize(cross(normal, directionNotNormal));
-    let perpendicularDirection2 = normalize(cross(normal, perpendicularDirection1));
-
-    return up * normal + cos(around) * over * perpendicularDirection1 + sin(around) * over * perpendicularDirection2;
-}
-
 @compute
 @workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
 fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
@@ -138,28 +106,6 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
     }
 }
 
-fn scatterLambertian(index: u32, intersect: vec3f, normal: vec3f) -> u32
-{
-    let pathSegment = &pathSegments.segments[index];
-
-    pathSegment.ray.origin = intersect + normal * EPSILON;
-    pathSegment.ray.direction = randomDirectionInHemisphere(normal);
-
-    pathSegment.remainingBounces--;
-
-    return 1;
-}
-
-fn evalLambertian(dirIn: vec3f, dirOut: vec3f, normal: vec3f, mColor: vec3f) -> vec3f
-{
-    return mColor * max(0.0, dot(dirOut, normal) / PI);
-}
-
-fn pdfLambertian(dirIn: vec3f, dirOut: vec3f, normal: vec3f) -> f32
-{
-    return max(0.0, dot(dirOut, normal) / PI);
-}
-
 fn scatterRay(index: u32) {
     let pathSegment = &pathSegments.segments[index];
     let intersect = &intersections.intersections[index];
@@ -174,7 +120,7 @@ fn scatterRay(index: u32) {
         return;
     }
 
-    var scattered : u32;
+    var scattered : PathSegment;
     var bsdf : vec3f;
     var pdf : f32;
     var attenuation : vec3f;
@@ -186,6 +132,10 @@ fn scatterRay(index: u32) {
         attenuation = vec3f(0.0);
     } else if (material.matType == 1) {
         scattered = scatterLambertian(index, pathSegment.ray.origin + pathSegment.ray.direction * intersect.t, intersect.surfaceNormal);
+        pathSegment.ray.origin = scattered.ray.origin;
+        pathSegment.ray.direction = scattered.ray.direction;
+        pathSegment.remainingBounces--;
+
         bsdf = evalLambertian(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color);
         pdf = pdfLambertian(dirIn, pathSegment.ray.direction, intersect.surfaceNormal);
         attenuation = bsdf / pdf;
