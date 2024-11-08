@@ -32,7 +32,7 @@ struct PathSegment
 {
     ray : Ray,
     color : vec3f,
-    pixelIndex : u32,
+    pixelIndex : i32,
     remainingBounces : i32,
 }
 
@@ -64,6 +64,8 @@ struct Material
 {
     color : vec3f,
     matType : u32, // 0 == emissive, 1 == lambertian
+    emittance : f32,
+    roughness : f32,
 };
 
 struct Materials

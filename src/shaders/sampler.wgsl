@@ -29,3 +29,28 @@ fn randomDirectionInHemisphere(normal: vec3f) -> vec3f
 
     return up * normal + cos(around) * over * perpendicularDirection1 + sin(around) * over * perpendicularDirection2;
 }
+
+fn randomOnUnitSphere() -> vec3f
+{
+    let phi = rand() * (2 * PI);
+    let cosTheta = 2 * rand() - 1;
+    let sinTheta = sqrt(1 - cosTheta * cosTheta);
+
+    return vec3f(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+
+fn randomOnUnitCircle() -> vec2f
+{
+    // Rejection sampling for a unit circle of radius 1
+    let middle = vec2f(1.0);
+    var xi1 = rand() * 2.0;
+    var xi2 = rand() * 2.0;
+    var p = vec2f(xi1, xi2) - middle;
+    while (length(p) >= 1.0) {
+        xi1 = rand() * 2.0;
+        xi2 = rand() * 2.0;
+        p = vec2f(xi1, xi2) - middle;
+    } 
+
+    return p;
+}

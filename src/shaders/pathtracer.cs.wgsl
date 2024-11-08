@@ -50,7 +50,7 @@ fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
         // segment.ray.direction = normalize(segment.ray.direction * cameraUniforms.focalLength + cameraUniforms.position - segment.ray.origin);
 
         segment.color = vec3(1.0f, 1.0f, 1.0f);
-        segment.pixelIndex = index;
+        segment.pixelIndex = i32(index);
         segment.remainingBounces = i32(cameraUniforms.depth);
     }
 }
@@ -128,17 +128,31 @@ fn scatterRay(index: u32) {
     // hopefully we can template if we have time later on
     let dirIn = pathSegment.ray.direction;
 
-    if (material.matType == 0) {
-        attenuation = vec3f(0.0);
-    } else if (material.matType == 1) {
-        scattered = scatterLambertian(index, pathSegment.ray.origin + pathSegment.ray.direction * intersect.t, intersect.surfaceNormal);
-        pathSegment.ray.origin = scattered.ray.origin;
-        pathSegment.ray.direction = scattered.ray.direction;
-        pathSegment.remainingBounces--;
+    if (material.matType == 0) { // Emissive
+        pathSegment.remainingBounces = -1;
+        bsdf = evalEmissive(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color, material.emittance);
 
+        attenuation = bsdf;
+    } else if (material.matType == 1) { // Lambertian
+        scattered = scatterLambertian(index, pathSegment.ray.origin + pathSegment.ray.direction * intersect.t, intersect.surfaceNormal);
         bsdf = evalLambertian(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color);
         pdf = pdfLambertian(dirIn, pathSegment.ray.direction, intersect.surfaceNormal);
+
         attenuation = bsdf / pdf;
+    } else if (material.matType == 2) { // Metal
+        scattered = scatterMetal(index, pathSegment.ray.origin + pathSegment.ray.direction * intersect.t, intersect.surfaceNormal, material.roughness);
+        bsdf = evalMetal(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color);
+
+        attenuation = bsdf;
+    }
+    pathSegment.ray.origin = scattered.ray.origin;
+    pathSegment.ray.direction = scattered.ray.direction;
+    pathSegment.remainingBounces--;
+
+    if (scattered.pixelIndex == -1) {
+        pathSegment.color = vec3f(0.0);
+        pathSegment.remainingBounces = -1;
+        return;
     }
 
     pathSegment.color = vec3f(1.0); // *= attenuation;

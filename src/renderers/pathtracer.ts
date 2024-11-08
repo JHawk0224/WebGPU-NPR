@@ -94,7 +94,7 @@ export class Pathtracer extends renderer.Renderer {
 
         this.materialsStorageBuffer = renderer.device.createBuffer({
             label: "materials",
-            size: 16 + 16 * 2,
+            size: 16 + 32 * 2,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
 
