@@ -100,8 +100,8 @@ export class Camera {
     static readonly nearPlane = 0.1;
     static readonly farPlane = 1000;
 
-    rayDepth: number = 8;
-    samples: number = 16;
+    rayDepth: number = 2;
+    samples: number = 1;
 
     keys: { [key: string]: boolean } = {};
 

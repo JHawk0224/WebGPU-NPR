@@ -1,3 +1,8 @@
+const PI = 3.1415926535897932384626422832795028841971;
+const TWO_PI = 6.2831853071795864769252867665590057683943;
+const SQRT_OF_ONE_THIRD = 0.5773502691896257645091487805019574556476;
+const EPSILON = 0.00001;
+
 struct Light {
     pos : vec3f,
     color : vec3f
@@ -28,7 +33,7 @@ struct PathSegment
     ray : Ray,
     color : vec3f,
     pixelIndex : u32,
-    remainingBounces : u32,
+    remainingBounces : i32,
 }
 
 struct PathSegments
@@ -53,6 +58,18 @@ struct Geoms
 {
     geomsSize : u32,
     geoms : array<Geom, 2>
+}
+
+struct Material
+{
+    color : vec3f,
+    matType : u32, // 0 == emissive, 1 == lambertian
+};
+
+struct Materials
+{
+    materialsSize : u32,
+    materials : array<Material, 2>
 }
 
 struct Intersection
@@ -135,7 +152,7 @@ fn intersectionTest(S: vec3<f32>, r: f32, C1: vec3<f32>, C2: vec3<f32>) -> bool 
     return distanceSquared <= r_squared;
 }
 
-fn getPointOnRay(r : Ray, t : f32) -> vec3f {
+fn getPointOnRay(r: Ray, t: f32) -> vec3f {
     return r.origin + (t - 0.0001) * normalize(r.direction);
 }
 

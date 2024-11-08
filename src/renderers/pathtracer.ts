@@ -1,3 +1,4 @@
+import { Mat4, mat4, Vec2, vec2, Vec3, vec3, vec4 } from "wgpu-matrix";
 import * as renderer from '../renderer';
 import * as shaders from '../shaders/shaders';
 import { Stage } from '../stage/stage';
@@ -11,8 +12,11 @@ export class Pathtracer extends renderer.Renderer {
 
     emptyBuffer: GPUBuffer;
 
+    geomsArray = new Float32Array(60);
+
     pathSegmentsStorageBuffer: GPUBuffer;
     geomsStorageBuffer: GPUBuffer;
+    materialsStorageBuffer: GPUBuffer;
     intersectionsStorageBuffer: GPUBuffer;
 
     pathtracerRenderTexture: GPUTexture;
@@ -88,6 +92,12 @@ export class Pathtracer extends renderer.Renderer {
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
 
+        this.materialsStorageBuffer = renderer.device.createBuffer({
+            label: "materials",
+            size: 16 + 16 * 2,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+        });
+
         this.intersectionsStorageBuffer = renderer.device.createBuffer({
             label: "intersections",
             size: 32 * shaders.constants.maxResolutionWidth * shaders.constants.maxResolutionHeight,
@@ -122,8 +132,13 @@ export class Pathtracer extends renderer.Renderer {
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" }
                 },
-                { // intersections
+                { // materials
                     binding: 3,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" }
+                },
+                { // intersections
+                    binding: 4,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" }
                 }
@@ -148,6 +163,10 @@ export class Pathtracer extends renderer.Renderer {
                 },
                 {
                     binding: 3,
+                    resource: { buffer: this.materialsStorageBuffer },
+                },
+                {
+                    binding: 4,
                     resource: { buffer: this.intersectionsStorageBuffer },
                 }
             ]
@@ -262,6 +281,19 @@ export class Pathtracer extends renderer.Renderer {
     }
 
     override draw() {
+        // A cube
+        for (let geomIdx = 0; geomIdx < 1; geomIdx++) {
+            this.geomsArray.set(mat4.identity(), 0);
+            this.geomsArray.set(mat4.identity(), 16);
+            this.geomsArray.set(mat4.identity(), 32);
+            this.geomsArray.set(vec4.zero(), 48);
+            this.geomsArray.set(vec4.zero(), 52);
+            this.geomsArray.set(vec4.zero(), 56);
+        }
+
+        renderer.device.queue.writeBuffer(this.geomsStorageBuffer, 0, new Uint32Array([1]));
+        renderer.device.queue.writeBuffer(this.geomsStorageBuffer, 16, this.geomsArray);
+
         const encoder = renderer.device.createCommandEncoder();
         const canvasTextureView = renderer.context.getCurrentTexture().createView();
 
