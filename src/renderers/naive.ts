@@ -1,6 +1,6 @@
-import * as renderer from '../renderer';
-import * as shaders from '../shaders/shaders';
-import { Stage } from '../stage/stage';
+import * as renderer from "../renderer";
+import * as shaders from "../shaders/shaders";
+import { Stage } from "../stage/stage";
 
 export class NaiveRenderer extends renderer.Renderer {
     sceneUniformsBindGroupLayout: GPUBindGroupLayout;
@@ -17,17 +17,19 @@ export class NaiveRenderer extends renderer.Renderer {
         this.sceneUniformsBindGroupLayout = renderer.device.createBindGroupLayout({
             label: "scene uniforms bind group layout",
             entries: [
-                { // cameraSet
+                {
+                    // cameraSet
                     binding: 0,
                     visibility: GPUShaderStage.VERTEX,
-                    buffer: { type: "uniform" }
+                    buffer: { type: "uniform" },
                 },
-                { // lightSet
+                {
+                    // lightSet
                     binding: 1,
                     visibility: GPUShaderStage.FRAGMENT,
-                    buffer: { type: "read-only-storage" }
-                }
-            ]
+                    buffer: { type: "read-only-storage" },
+                },
+            ],
         });
 
         this.sceneUniformsBindGroup = renderer.device.createBindGroup({
@@ -36,19 +38,19 @@ export class NaiveRenderer extends renderer.Renderer {
             entries: [
                 {
                     binding: 0,
-                    resource: { buffer: this.camera.uniformsBuffer }
+                    resource: { buffer: this.camera.uniformsBuffer },
                 },
                 {
                     binding: 1,
-                    resource: { buffer: this.lights.lightSetStorageBuffer }
-                }
-            ]
+                    resource: { buffer: this.lights.lightSetStorageBuffer },
+                },
+            ],
         });
 
         this.depthTexture = renderer.device.createTexture({
             size: [renderer.canvas.width, renderer.canvas.height],
             format: "depth24plus",
-            usage: GPUTextureUsage.RENDER_ATTACHMENT
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
         this.depthTextureView = this.depthTexture.createView();
 
@@ -58,20 +60,20 @@ export class NaiveRenderer extends renderer.Renderer {
                 bindGroupLayouts: [
                     this.sceneUniformsBindGroupLayout,
                     renderer.modelBindGroupLayout,
-                    renderer.materialBindGroupLayout
-                ]
+                    renderer.materialBindGroupLayout,
+                ],
             }),
             depthStencil: {
                 depthWriteEnabled: true,
                 depthCompare: "less",
-                format: "depth24plus"
+                format: "depth24plus",
             },
             vertex: {
                 module: renderer.device.createShaderModule({
                     label: "naive vert shader",
-                    code: shaders.naiveVertSrc
+                    code: shaders.naiveVertSrc,
                 }),
-                buffers: [ renderer.vertexBufferLayout ]
+                buffers: [renderer.vertexBufferLayout],
             },
             fragment: {
                 module: renderer.device.createShaderModule({
@@ -81,9 +83,9 @@ export class NaiveRenderer extends renderer.Renderer {
                 targets: [
                     {
                         format: renderer.canvasFormat,
-                    }
-                ]
-            }
+                    },
+                ],
+            },
         });
     }
 
@@ -98,14 +100,14 @@ export class NaiveRenderer extends renderer.Renderer {
                     view: canvasTextureView,
                     clearValue: [0, 0, 0, 0],
                     loadOp: "clear",
-                    storeOp: "store"
-                }
+                    storeOp: "store",
+                },
             ],
             depthStencilAttachment: {
                 view: this.depthTextureView,
                 depthClearValue: 1.0,
                 depthLoadOp: "clear",
-                depthStoreOp: "store"
+                depthStoreOp: "store",
             },
             ...(renderer.canTimestamp && {
                 timestampWrites: {
@@ -119,37 +121,43 @@ export class NaiveRenderer extends renderer.Renderer {
 
         renderPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
 
-        this.scene.iterate(node => {
-            renderPass.setBindGroup(shaders.constants.bindGroup_model, node.modelBindGroup);
-        }, material => {
-            renderPass.setBindGroup(shaders.constants.bindGroup_material, material.materialBindGroup);
-        }, primitive => {
-            renderPass.setVertexBuffer(0, primitive.vertexBuffer);
-            renderPass.setIndexBuffer(primitive.indexBuffer, 'uint32');
-            renderPass.drawIndexed(primitive.numIndices);
-        });
+        this.scene.iterate(
+            (node) => {
+                renderPass.setBindGroup(shaders.constants.bindGroup_model, node.modelBindGroup);
+            },
+            (material) => {
+                renderPass.setBindGroup(shaders.constants.bindGroup_material, material.materialBindGroup);
+            },
+            (primitive) => {
+                renderPass.setVertexBuffer(0, primitive.vertexBuffer);
+                renderPass.setIndexBuffer(primitive.indexBuffer, "uint32");
+                renderPass.drawIndexed(primitive.numIndices);
+            }
+        );
 
         renderPass.end();
 
         if (renderer.canTimestamp) {
             encoder.resolveQuerySet(this.querySet, 0, this.querySet.count, this.resolveBuffer, 0);
-            if (this.resultBuffer.mapState === 'unmapped') {
+            if (this.resultBuffer.mapState === "unmapped") {
                 encoder.copyBufferToBuffer(this.resolveBuffer, 0, this.resultBuffer, 0, this.resultBuffer.size);
             }
         }
 
         renderer.device.queue.submit([encoder.finish()]);
 
-        if (renderer.canTimestamp && this.resultBuffer.mapState === 'unmapped') {
+        if (renderer.canTimestamp && this.resultBuffer.mapState === "unmapped") {
             this.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
                 const times = new BigInt64Array(this.resultBuffer.getMappedRange());
-                this.gpuTime = (Number(times[1] - times[0])) * 0.000001;
-                if (this.gpuTimesIndex < this.gpuTimesSize && 
+                this.gpuTime = Number(times[1] - times[0]) * 0.000001;
+                if (
+                    this.gpuTimesIndex < this.gpuTimesSize &&
                     this.gpuTimes[this.gpuTimesIndex] != this.gpuTime &&
-                    this.gpuTime > 0) {
+                    this.gpuTime > 0
+                ) {
                     this.gpuTimes[this.gpuTimesIndex] = this.gpuTime;
                     this.gpuTimesIndex++;
-                } 
+                }
                 this.resultBuffer.unmap();
             });
         }

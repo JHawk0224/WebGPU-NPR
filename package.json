@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite --open",
-    "build": "vite build && cp -r scenes/ dist/"
+    "build": "vite build && cp -r scenes/ dist/",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css,html}\""
   },
   "devDependencies": {
     "@types/dat.gui": "^0.7.13",
     "@types/seedrandom": "^3.0.8",
     "@types/stats.js": "^0.17.3",
     "@webgpu/types": "^0.1.44",
+    "prettier": "^3.3.3",
     "typescript": "^5.2.2",
     "vite": "^5.3.4"
   },

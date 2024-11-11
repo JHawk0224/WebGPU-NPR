@@ -23,7 +23,7 @@ class CameraUniforms {
             this.floatView[i + 32] = mat[i];
         }
     }
-    
+
     set projInvMat(mat: Float32Array) {
         for (let i = 0; i < 16; i++) {
             this.floatView[i + 48] = mat[i];
@@ -105,7 +105,7 @@ export class Camera {
 
     keys: { [key: string]: boolean } = {};
 
-    constructor () {
+    constructor() {
         this.uniformsBuffer = device.createBuffer({
             label: "camera uniform buffer",
             size: this.uniforms.buffer.byteLength,
@@ -115,28 +115,28 @@ export class Camera {
         this.projMat = mat4.perspective(toRadians(fovYDegrees), aspectRatio, Camera.nearPlane, Camera.farPlane);
         this.uniforms.projMat = this.projMat;
         this.uniforms.projInvMat = mat4.inverse(this.projMat);
-        this.uniforms.nearFar = vec2.create(Camera.nearPlane, Camera.farPlane);        
+        this.uniforms.nearFar = vec2.create(Camera.nearPlane, Camera.farPlane);
         this.uniforms.resolution = vec2.create(canvas.width, canvas.height);
 
         let yscaled = Math.tan(fovYDegrees * (Math.PI / 180));
         let xscaled = (yscaled * canvas.width) / canvas.height;
-        this.uniforms.pixelLength = vec2.create(2 * xscaled / canvas.width,
-                                                2 * yscaled / canvas.height);
+        this.uniforms.pixelLength = vec2.create((2 * xscaled) / canvas.width, (2 * yscaled) / canvas.height);
 
         this.rotateCamera(0, 0); // set initial camera vectors
 
-        window.addEventListener('keydown', (event) => this.onKeyEvent(event, true));
-        window.addEventListener('keyup', (event) => this.onKeyEvent(event, false));
-        window.onblur = () => this.keys = {}; // reset keys on page exit so they don't get stuck (e.g. on alt + tab)
+        window.addEventListener("keydown", (event) => this.onKeyEvent(event, true));
+        window.addEventListener("keyup", (event) => this.onKeyEvent(event, false));
+        window.onblur = () => (this.keys = {}); // reset keys on page exit so they don't get stuck (e.g. on alt + tab)
 
-        canvas.addEventListener('mousedown', () => canvas.requestPointerLock());
-        canvas.addEventListener('mouseup', () => document.exitPointerLock());
-        canvas.addEventListener('mousemove', (event) => this.onMouseMove(event));
+        canvas.addEventListener("mousedown", () => canvas.requestPointerLock());
+        canvas.addEventListener("mouseup", () => document.exitPointerLock());
+        canvas.addEventListener("mousemove", (event) => this.onMouseMove(event));
     }
 
     private onKeyEvent(event: KeyboardEvent, down: boolean) {
         this.keys[event.key.toLowerCase()] = down;
-        if (this.keys['alt']) { // prevent issues from alt shortcuts
+        if (this.keys["alt"]) {
+            // prevent issues from alt shortcuts
             event.preventDefault();
         }
     }
@@ -170,31 +170,31 @@ export class Camera {
 
     private processInput(deltaTime: number) {
         let moveDir = vec3.create(0, 0, 0);
-        if (this.keys['w']) {
+        if (this.keys["w"]) {
             moveDir = vec3.add(moveDir, this.cameraFront);
         }
-        if (this.keys['s']) {
+        if (this.keys["s"]) {
             moveDir = vec3.sub(moveDir, this.cameraFront);
         }
-        if (this.keys['a']) {
+        if (this.keys["a"]) {
             moveDir = vec3.sub(moveDir, this.cameraRight);
         }
-        if (this.keys['d']) {
+        if (this.keys["d"]) {
             moveDir = vec3.add(moveDir, this.cameraRight);
         }
-        if (this.keys['q']) {
+        if (this.keys["q"]) {
             moveDir = vec3.sub(moveDir, this.cameraUp);
         }
-        if (this.keys['e']) {
+        if (this.keys["e"]) {
             moveDir = vec3.add(moveDir, this.cameraUp);
         }
 
         let moveSpeed = this.moveSpeed * deltaTime;
         const moveSpeedMultiplier = 3;
-        if (this.keys['shift']) {
+        if (this.keys["shift"]) {
             moveSpeed *= moveSpeedMultiplier;
         }
-        if (this.keys['alt']) {
+        if (this.keys["alt"]) {
             moveSpeed /= moveSpeedMultiplier;
         }
 
@@ -216,14 +216,18 @@ export class Camera {
         this.uniforms.up = this.cameraUp;
         this.uniforms.right = this.cameraRight;
         this.uniforms.cameraPos = this.cameraPos;
-        this.uniforms.seed = vec3.create(0xffffffff * Math.random(), 0xffffffff * Math.random(), 0xffffffff * Math.random());
+        this.uniforms.seed = vec3.create(
+            0xffffffff * Math.random(),
+            0xffffffff * Math.random(),
+            0xffffffff * Math.random()
+        );
 
         device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
     }
 
     updateDepth(depth: number) {
         this.uniforms.depth = depth;
-        
+
         device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
     }
 }

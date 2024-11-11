@@ -1,7 +1,7 @@
 import { vec3 } from "wgpu-matrix";
 import { device } from "../renderer";
 
-import * as shaders from '../shaders/shaders';
+import * as shaders from "../shaders/shaders";
 import { Camera } from "./camera";
 
 // h in [0, 1]
@@ -34,37 +34,43 @@ export class Lights {
         this.lightSetStorageBuffer = device.createBuffer({
             label: "lights",
             size: 16 + this.lightsArray.byteLength, // 16 for numLights + padding
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
         this.populateLightsBuffer();
         this.updateLightSetUniformNumLights();
-        
+
         this.clusterSetStorageBuffer = device.createBuffer({
             label: "clusters",
-            size: (16 + shaders.constants.maxNumLightsPerCluster * 4)
-                    * shaders.constants.numClusterX * shaders.constants.numClusterY * shaders.constants.numClusterZ,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+            size:
+                (16 + shaders.constants.maxNumLightsPerCluster * 4) *
+                shaders.constants.numClusterX *
+                shaders.constants.numClusterY *
+                shaders.constants.numClusterZ,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
         this.clusteringComputeBindGroupLayout = device.createBindGroupLayout({
             label: "clustering lights compute bind group layout",
             entries: [
-                { // cameraSet
+                {
+                    // cameraSet
                     binding: 0,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "uniform" }
+                    buffer: { type: "uniform" },
                 },
-                { // lightSet
+                {
+                    // lightSet
                     binding: 1,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "read-only-storage" }
+                    buffer: { type: "read-only-storage" },
                 },
-                { // clusterSet
+                {
+                    // clusterSet
                     binding: 2,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "storage" }
-                }
-            ]
+                    buffer: { type: "storage" },
+                },
+            ],
         });
 
         this.clusteringComputeBindGroup = device.createBindGroup({
@@ -73,32 +79,32 @@ export class Lights {
             entries: [
                 {
                     binding: 0,
-                    resource: { buffer: this.camera.uniformsBuffer }
+                    resource: { buffer: this.camera.uniformsBuffer },
                 },
                 {
                     binding: 1,
-                    resource: { buffer: this.lightSetStorageBuffer }
+                    resource: { buffer: this.lightSetStorageBuffer },
                 },
                 {
                     binding: 2,
-                    resource: { buffer: this.clusterSetStorageBuffer }
-                }
-            ]
+                    resource: { buffer: this.clusterSetStorageBuffer },
+                },
+            ],
         });
 
         this.clusteringComputePipeline = device.createComputePipeline({
             label: "clustering lights compute pipeline",
             layout: device.createPipelineLayout({
                 label: "clustering lights compute pipeline layout",
-                bindGroupLayouts: [ this.clusteringComputeBindGroupLayout ]
+                bindGroupLayouts: [this.clusteringComputeBindGroupLayout],
             }),
             compute: {
                 module: device.createShaderModule({
                     label: "clustering lights compute shader",
-                    code: shaders.clusteringComputeSrc
+                    code: shaders.clusteringComputeSrc,
                 }),
-                entryPoint: "main"
-            }
+                entryPoint: "main",
+            },
         });
     }
 
@@ -106,7 +112,7 @@ export class Lights {
         for (let lightIdx = 0; lightIdx < Lights.maxNumLights; ++lightIdx) {
             // light pos is set by compute shader so no need to set it here
             const lightColor = vec3.scale(hueToRgb(Math.random()), Lights.lightIntensity);
-            this.lightsArray.set(lightColor, (lightIdx * Lights.numFloatsPerLight) + 4);
+            this.lightsArray.set(lightColor, lightIdx * Lights.numFloatsPerLight + 4);
         }
 
         device.queue.writeBuffer(this.lightSetStorageBuffer, 16, this.lightsArray);
@@ -123,9 +129,11 @@ export class Lights {
 
         computePass.setBindGroup(0, this.clusteringComputeBindGroup);
 
-        computePass.dispatchWorkgroups(Math.ceil(shaders.constants.numClusterX / shaders.constants.workgroupSizeX),
-                                    Math.ceil(shaders.constants.numClusterY / shaders.constants.workgroupSizeY),
-                                    Math.ceil(shaders.constants.numClusterZ / shaders.constants.workgroupSizeZ));
+        computePass.dispatchWorkgroups(
+            Math.ceil(shaders.constants.numClusterX / shaders.constants.workgroupSizeX),
+            Math.ceil(shaders.constants.numClusterY / shaders.constants.workgroupSizeY),
+            Math.ceil(shaders.constants.numClusterZ / shaders.constants.workgroupSizeZ)
+        );
 
         computePass.end();
     }

@@ -5,11 +5,11 @@ so you may run into issues loading files outside of the Sponza scene.
 In particular, it is known to not work if there is a mesh with no material.
 */
 
-import { registerLoaders, load } from '@loaders.gl/core';
-import { GLTFLoader, GLTFWithBuffers, GLTFMesh, GLTFMeshPrimitive, GLTFMaterial, GLTFSampler } from '@loaders.gl/gltf';
-import { ImageLoader } from '@loaders.gl/images';
-import { Mat4, mat4 } from 'wgpu-matrix';
-import { device, materialBindGroupLayout, modelBindGroupLayout } from '../renderer';
+import { registerLoaders, load } from "@loaders.gl/core";
+import { GLTFLoader, GLTFWithBuffers, GLTFMesh, GLTFMeshPrimitive, GLTFMaterial, GLTFSampler } from "@loaders.gl/gltf";
+import { ImageLoader } from "@loaders.gl/images";
+import { Mat4, mat4 } from "wgpu-matrix";
+import { device, materialBindGroupLayout, modelBindGroupLayout } from "../renderer";
 
 export function setupLoaders() {
     registerLoaders([GLTFLoader, ImageLoader]);
@@ -46,17 +46,12 @@ export class Material {
         if (gltfMaterial.pbrMetallicRoughness!.baseColorTexture == undefined) {
             let texture = device.createTexture({
                 size: [1, 1],
-                format: 'rgba8unorm',
-                usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
+                format: "rgba8unorm",
+                usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
             });
 
             let textureData = new Uint8Array(gltfMaterial.pbrMetallicRoughness!.baseColorFactor!);
-            device.queue.writeTexture(
-                { texture },
-                textureData,
-                { bytesPerRow: 4 },
-                { width: 1, height: 1 },
-            );
+            device.queue.writeTexture({ texture }, textureData, { bytesPerRow: 4 }, { width: 1, height: 1 });
 
             this.materialBindGroup = device.createBindGroup({
                 label: "material bind group",
@@ -64,30 +59,30 @@ export class Material {
                 entries: [
                     {
                         binding: 0,
-                        resource: texture.createView()
+                        resource: texture.createView(),
                     },
                     {
                         binding: 1,
-                        resource: device.createSampler()
-                    }
-                ]
+                        resource: device.createSampler(),
+                    },
+                ],
             });
         } else {
             const diffuseTexture = textures[gltfMaterial.pbrMetallicRoughness!.baseColorTexture!.index];
-    
+
             this.materialBindGroup = device.createBindGroup({
                 label: "material bind group",
                 layout: materialBindGroupLayout,
                 entries: [
                     {
                         binding: 0,
-                        resource: diffuseTexture.image.createView()
+                        resource: diffuseTexture.image.createView(),
                     },
                     {
                         binding: 1,
-                        resource: diffuseTexture.sampler
-                    }
-                ]
+                        resource: diffuseTexture.sampler,
+                    },
+                ],
             });
         }
     }
@@ -109,15 +104,15 @@ export class Primitive {
         const indicesBufferView = gltf.bufferViews![indicesAccessor.bufferView!];
         const indicesDataType = indicesAccessor.componentType;
         const indicesBuffer = gltfWithBuffers.buffers[indicesBufferView.buffer];
-        const indicesByteOffset = (indicesAccessor.byteOffset ?? 0)
-            + (indicesBufferView.byteOffset ?? 0)
-            + indicesBuffer.byteOffset;
+        const indicesByteOffset =
+            (indicesAccessor.byteOffset ?? 0) + (indicesBufferView.byteOffset ?? 0) + indicesBuffer.byteOffset;
         let indicesArray: Uint32Array;
         // hardcoding webgl constants, very silly
         switch (indicesDataType) {
             case 0x1403: // UNSIGNED_SHORT
                 indicesArray = Uint32Array.from(
-                    new Uint16Array(indicesBuffer.arrayBuffer, indicesByteOffset, indicesAccessor.count));
+                    new Uint16Array(indicesBuffer.arrayBuffer, indicesByteOffset, indicesAccessor.count)
+                );
                 break;
             case 0x1405: // UNSIGNED_INT (untested)
                 indicesArray = new Uint32Array(indicesBuffer.arrayBuffer, indicesByteOffset, indicesAccessor.count);
@@ -221,9 +216,9 @@ export class Node {
                 entries: [
                     {
                         binding: 0,
-                        resource: { buffer: this.modelMatUniformBuffer }
-                    }
-                ]
+                        resource: { buffer: this.modelMatUniformBuffer },
+                    },
+                ],
             });
         }
 
@@ -236,8 +231,8 @@ export class Node {
 function createTexture(imageBitmap: ImageBitmap): GPUTexture {
     let texture = device.createTexture({
         size: [imageBitmap.width, imageBitmap.height],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
     device.queue.copyExternalImageToTexture(
@@ -252,11 +247,11 @@ function createTexture(imageBitmap: ImageBitmap): GPUTexture {
 function convertWrapModeEnum(wrapMode: number): GPUAddressMode {
     switch (wrapMode) {
         case 0x2901: // REPEAT
-            return 'repeat';
-        case 0x812F: // CLAMP_TO_EDGE
-            return 'clamp-to-edge';
+            return "repeat";
+        case 0x812f: // CLAMP_TO_EDGE
+            return "clamp-to-edge";
         case 0x8370: // MIRRORED_REPEAT
-            return 'mirror-repeat';
+            return "mirror-repeat";
         default:
             throw new Error(`unsupported wrap mode: 0x${wrapMode.toString(16)}`);
     }
@@ -267,10 +262,10 @@ function createSampler(gltfSampler: GLTFSampler): GPUSampler {
 
     switch (gltfSampler.magFilter) {
         case 0x2600: // NEAREST
-            samplerDescriptor.magFilter = 'nearest';
+            samplerDescriptor.magFilter = "nearest";
             break;
         case 0x2601: // LINEAR
-            samplerDescriptor.magFilter = 'linear';
+            samplerDescriptor.magFilter = "linear";
             break;
         default:
             throw new Error(`unsupported magFilter: 0x${gltfSampler.magFilter!.toString(16)}`);
@@ -278,26 +273,26 @@ function createSampler(gltfSampler: GLTFSampler): GPUSampler {
 
     switch (gltfSampler.minFilter) {
         case 0x2600: // NEAREST
-            samplerDescriptor.minFilter = 'nearest';
+            samplerDescriptor.minFilter = "nearest";
             break;
         case 0x2601: // LINEAR
-            samplerDescriptor.minFilter = 'linear';
+            samplerDescriptor.minFilter = "linear";
             break;
         case 0x2700: // NEAREST_MIPMAP_NEAREST
-            samplerDescriptor.minFilter = 'nearest';
-            samplerDescriptor.mipmapFilter = 'nearest';
+            samplerDescriptor.minFilter = "nearest";
+            samplerDescriptor.mipmapFilter = "nearest";
             break;
         case 0x2701: // LINEAR_MIPMAP_NEAREST
-            samplerDescriptor.minFilter = 'linear';
-            samplerDescriptor.mipmapFilter = 'nearest';
+            samplerDescriptor.minFilter = "linear";
+            samplerDescriptor.mipmapFilter = "nearest";
             break;
         case 0x2702: // NEAREST_MIPMAP_LINEAR
-            samplerDescriptor.minFilter = 'nearest';
-            samplerDescriptor.mipmapFilter = 'linear';
+            samplerDescriptor.minFilter = "nearest";
+            samplerDescriptor.mipmapFilter = "linear";
             break;
         case 0x2703: // LINEAR_MIPMAP_LINEAR
-            samplerDescriptor.minFilter = 'linear';
-            samplerDescriptor.mipmapFilter = 'linear';
+            samplerDescriptor.minFilter = "linear";
+            samplerDescriptor.mipmapFilter = "linear";
             break;
         default:
             throw new Error(`unsupported minFilter: 0x${gltfSampler.minFilter!.toString(16)}`);
@@ -317,14 +312,14 @@ export class Scene {
     }
 
     async loadGltf(filePath: string) {
-        const gltfWithBuffers = await load(filePath) as GLTFWithBuffers;
+        const gltfWithBuffers = (await load(filePath)) as GLTFWithBuffers;
         const gltf = gltfWithBuffers.json;
 
         let sceneTextures: Texture[] = [];
         {
             let sceneImages: GPUTexture[] = [];
             for (let gltfImage of gltfWithBuffers.images!) {
-                sceneImages.push(createTexture(gltfImage as ImageBitmap))
+                sceneImages.push(createTexture(gltfImage as ImageBitmap));
             }
 
             let sceneSamplers: GPUSampler[] = [];
@@ -336,7 +331,9 @@ export class Scene {
 
             if (gltf.textures != undefined) {
                 for (let gltfTexture of gltf.textures!) {
-                    sceneTextures.push(new Texture(sceneImages[gltfTexture.source!], sceneSamplers[gltfTexture.sampler!]));
+                    sceneTextures.push(
+                        new Texture(sceneImages[gltfTexture.source!], sceneSamplers[gltfTexture.sampler!])
+                    );
                 }
             }
         }
@@ -401,8 +398,11 @@ export class Scene {
         sceneRoot.propagateTransformations();
     }
 
-    iterate(nodeFunction: (node: Node) => void, materialFunction: (material: Material) => void,
-        primFunction: (primitive: Primitive) => void) {
+    iterate(
+        nodeFunction: (node: Node) => void,
+        materialFunction: (material: Material) => void,
+        primFunction: (primitive: Primitive) => void
+    ) {
         let nodes = [this.root];
 
         let lastMaterialId: number | undefined = undefined;

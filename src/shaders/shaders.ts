@@ -1,23 +1,23 @@
-import { Camera } from '../stage/camera';
+import { Camera } from "../stage/camera";
 
-import commonRaw from './common.wgsl?raw';
-import intersectionRaw from './intersection.wgsl?raw';
-import integratorRaw from './integrator.wgsl?raw';
-import samplerRaw from './sampler.wgsl?raw';
+import commonRaw from "./common.wgsl?raw";
+import intersectionRaw from "./intersection.wgsl?raw";
+import integratorRaw from "./integrator.wgsl?raw";
+import samplerRaw from "./sampler.wgsl?raw";
 
-import naiveVertRaw from './naive.vs.wgsl?raw';
-import naiveFragRaw from './naive.fs.wgsl?raw';
+import naiveVertRaw from "./naive.vs.wgsl?raw";
+import naiveFragRaw from "./naive.fs.wgsl?raw";
 
-import clusteredDeferredFragRaw from './clustered_deferred.fs.wgsl?raw';
-import clusteredDeferredFullscreenVertRaw from './clustered_deferred_fullscreen.vs.wgsl?raw';
-import clusteredDeferredFullscreenFragRaw from './clustered_deferred_fullscreen.fs.wgsl?raw';
+import clusteredDeferredFragRaw from "./clustered_deferred.fs.wgsl?raw";
+import clusteredDeferredFullscreenVertRaw from "./clustered_deferred_fullscreen.vs.wgsl?raw";
+import clusteredDeferredFullscreenFragRaw from "./clustered_deferred_fullscreen.fs.wgsl?raw";
 
-import clusteringComputeRaw from './clustering.cs.wgsl?raw';
+import clusteringComputeRaw from "./clustering.cs.wgsl?raw";
 
-import pathtracerVertRaw from './pathtracer.vs.wgsl?raw';
-import pathtracerFragRaw from './pathtracer.fs.wgsl?raw';
+import pathtracerVertRaw from "./pathtracer.vs.wgsl?raw";
+import pathtracerFragRaw from "./pathtracer.fs.wgsl?raw";
 
-import pathtracerComputeRaw from './pathtracer.cs.wgsl?raw';
+import pathtracerComputeRaw from "./pathtracer.cs.wgsl?raw";
 
 // CONSTANTS (for use in shaders)
 // =================================
@@ -47,13 +47,13 @@ export const constants = {
     maxResolutionWidth: 1920,
     maxResolutionHeight: 1080,
 
-    presentationFormat: 'bgra8unorm'
+    presentationFormat: "bgra8unorm",
 };
 
 // =================================
 
 function evalShaderRaw(raw: string) {
-    return eval('`' + raw.replaceAll('${', '${constants.') + '`');
+    return eval("`" + raw.replaceAll("${", "${constants.") + "`");
 }
 
 const commonSrc: string = evalShaderRaw(commonRaw);

@@ -1,7 +1,7 @@
-import { Scene } from './stage/scene';
-import { Lights } from './stage/lights';
-import { Camera } from './stage/camera';
-import { Stage } from './stage/stage';
+import { Scene } from "./stage/scene";
+import { Lights } from "./stage/lights";
+import { Camera } from "./stage/camera";
+import { Stage } from "./stage/stage";
 
 export var canvas: HTMLCanvasElement;
 export var canvasFormat: GPUTextureFormat;
@@ -24,90 +24,98 @@ export async function initWebGPU() {
     const devicePixelRatio = window.devicePixelRatio;
     canvas.width = canvas.clientWidth * devicePixelRatio;
     canvas.height = canvas.clientHeight * devicePixelRatio;
-    
+
     aspectRatio = canvas.width / canvas.height;
 
-    if (!navigator.gpu)
-    {
+    if (!navigator.gpu) {
         let errorMessageElement = document.createElement("h1");
         errorMessageElement.textContent = "This browser doesn't support WebGPU! Try using Google Chrome.";
-        errorMessageElement.style.paddingLeft = '0.4em';
-        document.body.innerHTML = '';
+        errorMessageElement.style.paddingLeft = "0.4em";
+        document.body.innerHTML = "";
         document.body.appendChild(errorMessageElement);
         throw new Error("WebGPU not supported on this browser");
     }
 
     const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter)
-    {
+    if (!adapter) {
         throw new Error("no appropriate GPUAdapter found");
     }
 
-    canTimestamp = adapter.features.has('timestamp-query');
-    const hasBGRA8unormStorage = adapter.features.has('bgra8unorm-storage');
+    canTimestamp = adapter.features.has("timestamp-query");
+    const hasBGRA8unormStorage = adapter.features.has("bgra8unorm-storage");
     device = await adapter.requestDevice({
-        requiredFeatures: (canTimestamp ? 
-                            (hasBGRA8unormStorage ? ['timestamp-query', 'bgra8unorm-storage'] : ['timestamp-query']) : 
-                            (hasBGRA8unormStorage ? ['bgra8unorm-storage'] : [])),
+        requiredFeatures: canTimestamp
+            ? hasBGRA8unormStorage
+                ? ["timestamp-query", "bgra8unorm-storage"]
+                : ["timestamp-query"]
+            : hasBGRA8unormStorage
+              ? ["bgra8unorm-storage"]
+              : [],
     });
 
     context = canvas.getContext("webgpu")!;
-    canvasFormat = hasBGRA8unormStorage ? navigator.gpu.getPreferredCanvasFormat() : 'bgra8unorm';
+    canvasFormat = hasBGRA8unormStorage ? navigator.gpu.getPreferredCanvasFormat() : "bgra8unorm";
     context.configure({
         device: device,
         format: canvasFormat,
         usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
     });
 
-    console.log("WebGPU init successsful");
+    console.log("WebGPU init successful");
 
     modelBindGroupLayout = device.createBindGroupLayout({
         label: "model bind group layout",
         entries: [
-            { // modelMat
+            {
+                // modelMat
                 binding: 0,
                 visibility: GPUShaderStage.VERTEX,
-                buffer: { type: "uniform" }
-            }
-        ]
+                buffer: { type: "uniform" },
+            },
+        ],
     });
 
     materialBindGroupLayout = device.createBindGroupLayout({
         label: "material bind group layout",
         entries: [
-            { // diffuseTex
+            {
+                // diffuseTex
                 binding: 0,
                 visibility: GPUShaderStage.FRAGMENT,
-                texture: {}
+                texture: {},
             },
-            { // diffuseTexSampler
+            {
+                // diffuseTexSampler
                 binding: 1,
                 visibility: GPUShaderStage.FRAGMENT,
-                sampler: {}
-            }
-        ]
+                sampler: {},
+            },
+        ],
     });
 }
 
 export const vertexBufferLayout: GPUVertexBufferLayout = {
     arrayStride: 32,
     attributes: [
-        { // pos
+        {
+            // pos
             format: "float32x3",
             offset: 0,
-            shaderLocation: 0
+            shaderLocation: 0,
         },
-        { // nor
+        {
+            // nor
             format: "float32x3",
             offset: 12,
-            shaderLocation: 1
+            shaderLocation: 1,
         },
-        { // uv
+        {
+            // uv
             format: "float32x2",
             offset: 24,
-            shaderLocation: 2
-        }
-    ]
+            shaderLocation: 2,
+        },
+    ],
 };
 
 export abstract class Renderer {
@@ -145,7 +153,7 @@ export abstract class Renderer {
         this.frameRequestId = requestAnimationFrame((t) => this.onFrame(t));
 
         this.querySet = device.createQuerySet({
-            type: 'timestamp',
+            type: "timestamp",
             count: 6,
         });
         this.resolveBuffer = device.createBuffer({
@@ -154,7 +162,7 @@ export abstract class Renderer {
         });
         this.resultBuffer = device.createBuffer({
             size: this.resolveBuffer.size,
-            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,  
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
         });
 
         this.gpuTimes = new Array<number>(this.gpuTimesSize);
