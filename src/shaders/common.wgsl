@@ -144,3 +144,25 @@ fn applyTransform(p: vec4<f32>, transform: mat4x4<f32>) -> vec3<f32> {
     let transformed = transform * p;
     return transformed.xyz / transformed.w;
 }
+
+// RNG code from https://github.com/webgpu/webgpu-samples/blob/main/sample/cornell/common.wgsl#L93
+// A psuedo random number. Initialized with init_rand(), updated with rand().
+var<private> rnd : vec3u;
+
+// Initializes the random number generator.
+fn init_rand(invocation_id : vec3u, seed : vec3u) {
+  const A = vec3(1741651 * 1009,
+                 140893  * 1609 * 13,
+                 6521    * 983  * 7 * 2);
+  rnd = (invocation_id * A) ^ seed;
+}
+
+// Returns a random number between 0 and 1.
+fn rand() -> f32 {
+  const C = vec3(60493  * 9377,
+                 11279  * 2539 * 23,
+                 7919   * 631  * 5 * 3);
+
+  rnd = (rnd * C) ^ (rnd.yzx >> vec3(4u));
+  return f32(rnd.x ^ rnd.y) / f32(0xffffffff);
+}
