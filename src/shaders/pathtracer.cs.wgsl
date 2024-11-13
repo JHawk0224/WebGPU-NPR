@@ -96,7 +96,7 @@ fn scatterRay(index: u32) {
 
     if (intersect.t < 0.0) {
         // let color = vec3f(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
-        let color = vec3f(0.3);
+        let color = vec3f(0.1);
         pathSegment.color *= color;
         pathSegment.remainingBounces = -2;
         return;
@@ -144,11 +144,8 @@ fn scatterRay(index: u32) {
 
     if (pathSegment.remainingBounces < 0 && material.params[0] != 0.0f) {
         // did not reach a light till max depth, terminate path as invalid
-        // pathSegment.color = vec3f(1.0, 1.0, 0.0);
+        pathSegment.color = vec3f(1.0, 1.0, 0.0);
     }
-
-    // let materialId = material.params[0];
-    // pathSegment.color = vec3f(materialId - 1.f, materialId, materialId + 1.f);
 }
 
 @compute

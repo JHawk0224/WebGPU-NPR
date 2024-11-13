@@ -28,7 +28,7 @@ fn scatterLambertian(index: u32, intersect: vec3f, normal: vec3f) -> PathSegment
 
 fn evalLambertian(dirIn: vec3f, dirOut: vec3f, normal: vec3f, mColor: vec3f) -> vec3f
 {
-    return normalize(dirOut);//// mColor * max(0.0, dot(normalize(dirOut), normalize(normal)) / PI);
+    return mColor * max(0.0, dot(normalize(dirOut), normalize(normal)) / PI);
 }
 
 fn pdfLambertian(dirIn: vec3f, dirOut: vec3f, normal: vec3f) -> f32
