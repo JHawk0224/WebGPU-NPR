@@ -15,7 +15,9 @@ await initWebGPU();
 setupLoaders();
 
 let scene = new Scene();
-await scene.loadGltf("./scenes/suzanne.gltf");
+await scene.loadGltf("./scenes/box/BoxTextured.gltf");
+// await scene.loadGltf("./scenes/suzanne.gltf");
+// await scene.loadGltf("./scenes/sponza/Sponza.gltf");
 
 const camera = new Camera();
 const lights = new Lights(camera);

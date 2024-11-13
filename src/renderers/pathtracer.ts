@@ -219,19 +219,19 @@ export class Pathtracer extends renderer.Renderer {
             () => {}
         );
 
-        const mat = {
-            matType: 1,
-            emittance: 1.0,
-            roughness: 0.0,
-            color: vec3.create(0.0, 1.0, 0.0),
-        };
-        const matIdx = 0;
-        materialsArray[matIdx * 6 + 0] = mat.color[0];
-        materialsArray[matIdx * 6 + 1] = mat.color[1];
-        materialsArray[matIdx * 6 + 2] = mat.color[2];
-        materialsArray[matIdx * 6 + 3] = mat.matType;
-        materialsArray[matIdx * 6 + 4] = mat.emittance;
-        materialsArray[matIdx * 6 + 5] = mat.roughness;
+        // const mat = {
+        //     matType: 1,
+        //     emittance: 1.0,
+        //     roughness: 0.0,
+        //     color: vec3.create(0.0, 1.0, 0.0),
+        // };
+        // const matIdx = 0;
+        // materialsArray[matIdx * 6 + 0] = mat.color[0];
+        // materialsArray[matIdx * 6 + 1] = mat.color[1];
+        // materialsArray[matIdx * 6 + 2] = mat.color[2];
+        // materialsArray[matIdx * 6 + 3] = mat.matType;
+        // materialsArray[matIdx * 6 + 4] = mat.emittance;
+        // materialsArray[matIdx * 6 + 5] = mat.roughness;
 
         const materialsSize = materialsArray.length / 6;
         const buffer = new ArrayBuffer(16 + materialsSize * (16 + 16));

@@ -60,6 +60,11 @@ function getFloatArray(gltfWithBuffers: GLTFWithBuffers, attribute: number): Flo
         return null;
     }
 
+    if (accessor.componentType !== 5126) {
+        console.warn(`Unsupported componentType: ${accessor.componentType}`);
+        return null;
+    }
+
     const bufferViewIndex = accessor.bufferView;
     if (bufferViewIndex === undefined) {
         console.warn(`Accessor at index ${attribute} has undefined bufferView`);
@@ -81,14 +86,37 @@ function getFloatArray(gltfWithBuffers: GLTFWithBuffers, attribute: number): Flo
 
     const accessorByteOffset = accessor.byteOffset ?? 0;
     const bufferViewByteOffset = bufferView.byteOffset ?? 0;
-    const byteOffset = accessorByteOffset + bufferViewByteOffset + buffer.byteOffset;
-    const byteLength = bufferView.byteLength ?? 0;
-    if (byteLength === 0) {
-        console.warn(`BufferView at index ${bufferViewIndex} has zero byteLength`);
+    const byteOffset = accessorByteOffset + bufferViewByteOffset;
+
+    const numComponents = {
+        SCALAR: 1,
+        VEC2: 2,
+        VEC3: 3,
+        VEC4: 4,
+        MAT2: 4,
+        MAT3: 9,
+        MAT4: 16,
+    }[accessor.type];
+
+    if (numComponents === undefined) {
+        throw new Error(`Unknown accessor type: ${accessor.type}`);
+    }
+
+    const byteLength = accessor.count * numComponents * Float32Array.BYTES_PER_ELEMENT;
+
+    if (!buffer.arrayBuffer) {
+        console.warn(`Buffer at index ${bufferIndex} has undefined arrayBuffer`);
         return null;
     }
 
-    return new Float32Array(buffer.arrayBuffer, byteOffset, accessor.count * 3);
+    if (byteOffset + byteLength > buffer.arrayBuffer.byteLength) {
+        console.warn(
+            `Attempting to read beyond buffer length. ByteOffset: ${byteOffset}, ByteLength: ${byteLength}, Buffer length: ${buffer.arrayBuffer.byteLength}`
+        );
+        return null;
+    }
+
+    return new Float32Array(buffer.arrayBuffer, byteOffset, accessor.count * numComponents);
 }
 
 class Texture {
@@ -449,7 +477,13 @@ export class Scene {
     }
 
     async loadGltf(filePath: string) {
-        const gltfWithBuffers = (await load(filePath)) as GLTFWithBuffers;
+        const gltfWithBuffers = (await load(filePath, [GLTFLoader], {
+            gltf: {
+                loadBuffers: true,
+                loadImages: true,
+            },
+        })) as GLTFWithBuffers;
+
         const gltf = gltfWithBuffers.json;
 
         const sceneTextures: Texture[] = [];
