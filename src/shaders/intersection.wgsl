@@ -223,15 +223,14 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Trian
             let nodeIdx = stack[stackPtr];
             let node = bvhNodes.nodes[nodeIdx];
 
-            if (node.triangleCount <= 0) {
-                continue;
-            }
-
-            let triangleStart = u32(node.triangleStart);
-
             if (rayIntersectsAABB(objRay, node.boundsMin.xyz, node.boundsMax.xyz)) {
                 if (node.leftChild == -1 && node.rightChild == -1) {
                     // Leaf node
+                    if (node.triangleStart < 0) {
+                        continue;
+                    }
+                    let triangleStart = u32(node.triangleStart);
+
                     for (var i = triangleStart; i < triangleStart + node.triangleCount; i = i + 1u) {
                         let tri = tris.tris[i];
                         let hitInfo = triangleIntersectionTest(tri, objRay);
