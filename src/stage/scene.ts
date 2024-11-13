@@ -576,10 +576,7 @@ export class Scene {
                     bvhRootNodeIdx: -1,
                 };
 
-                let meshTriangles: TriangleData[] = [];
-                let meshTriangleIndices: number[] = [];
-                const meshTriangleStartIdx = triangleStartIdx;
-
+                let triangleCount = 0;
                 for (const primitive of node.mesh.primitives) {
                     const vertsArray = primitive.vertsArray;
                     const indicesArray = primitive.indicesArray;
@@ -608,24 +605,20 @@ export class Scene {
                             v2,
                             materialId: primitive.material?.id ?? -1,
                         };
-                        meshTriangles.push(triangle);
-                        meshTriangleIndices.push(triangleStartIdx);
                         trianglesArray.push(triangle);
-                        triangleStartIdx += 1;
+                        triangleCount += 1;
                     }
                 }
 
-                geomData.triangleCount = meshTriangles.length;
-                geomData.triangleStartIdx = meshTriangleStartIdx;
+                geomData.triangleCount = triangleCount;
+                triangleStartIdx += triangleCount;
 
                 // Build BVH for this mesh
                 const bvhNodeStartIdx = bvhNodesArray.length;
                 const bvhRootNodeIdx = this.buildBVH(
-                    meshTriangles,
-                    meshTriangleIndices,
-                    0,
-                    meshTriangleIndices.length,
                     trianglesArray,
+                    triangleStartIdx - triangleCount,
+                    triangleStartIdx,
                     bvhNodesArray
                 );
                 geomData.bvhRootNodeIdx = bvhRootNodeIdx + bvhNodeStartIdx;
@@ -643,14 +636,7 @@ export class Scene {
         return { geomsArray, trianglesArray, bvhNodesArray };
     }
 
-    buildBVH(
-        meshTriangles: TriangleData[],
-        triangleIndices: number[],
-        start: number,
-        end: number,
-        trianglesArray: TriangleData[],
-        bvhNodes: BVHNodeData[]
-    ): number {
+    buildBVH(trianglesArray: TriangleData[], start: number, end: number, bvhNodes: BVHNodeData[]): number {
         const nodeIndex = bvhNodes.length;
         const node: BVHNodeData = {
             boundsMin: vec3.create(Infinity, Infinity, Infinity),
@@ -662,8 +648,7 @@ export class Scene {
         };
 
         for (let i = start; i < end; i++) {
-            const triIndex = triangleIndices[i];
-            const tri = meshTriangles[triIndex - triangleIndices[0]];
+            const tri = trianglesArray[i];
             for (let j = 0; j < 3; j++) {
                 node.boundsMin[j] = Math.min(node.boundsMin[j], tri.v0[j]);
                 node.boundsMin[j] = Math.min(node.boundsMin[j], tri.v1[j]);
@@ -683,21 +668,19 @@ export class Scene {
             const extent = vec3.subtract(vec3.create(), node.boundsMax, node.boundsMin);
             let axis = extent.indexOf(Math.max(...extent)); // TODO OPTIMIZE WHICH AXIS
 
-            const indicesToSort = triangleIndices.slice(start, end);
-            indicesToSort.sort((aIdx, bIdx) => {
-                const a = meshTriangles[aIdx - triangleIndices[0]];
-                const b = meshTriangles[bIdx - triangleIndices[0]];
+            const trianglesToSort = trianglesArray.slice(start, end);
+            trianglesToSort.sort((a, b) => {
                 const aCenter = (a.v0[axis] + a.v1[axis] + a.v2[axis]) / 3;
                 const bCenter = (b.v0[axis] + b.v1[axis] + b.v2[axis]) / 3;
                 return aCenter - bCenter;
             });
             for (let i = start; i < end; i++) {
-                triangleIndices[i] = indicesToSort[i - start];
+                trianglesArray[i] = trianglesToSort[i - start];
             }
 
             const mid = Math.floor((start + end) / 2); // TODO OPTIMIZE SPLITTING (PICK MEDIAN)
-            node.leftChild = this.buildBVH(meshTriangles, triangleIndices, start, mid, trianglesArray, bvhNodes);
-            node.rightChild = this.buildBVH(meshTriangles, triangleIndices, mid, end, trianglesArray, bvhNodes);
+            node.leftChild = this.buildBVH(trianglesArray, start, mid, bvhNodes);
+            node.rightChild = this.buildBVH(trianglesArray, mid, end, bvhNodes);
             node.triangleStart = -1;
             node.triangleCount = 0;
         }

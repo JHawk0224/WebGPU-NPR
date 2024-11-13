@@ -11,7 +11,7 @@ fn getPointOnRay(r: Ray, t: f32) -> vec3f {
     return r.origin + (t - 0.0001) * normalize(r.direction);
 }
 
-fn boxIntersectionTest(box: ptr<storage, Geom, read_write>, r: Ray) -> HitInfo
+fn boxIntersectionTest(box: ptr<storage, Geom, read>, r: Ray) -> HitInfo
 {
     var ret : HitInfo;
     ret.hitTriIndex = -1;
@@ -69,7 +69,7 @@ fn boxIntersectionTest(box: ptr<storage, Geom, read_write>, r: Ray) -> HitInfo
     return ret;
 }
 
-fn sphereIntersectionTest(sphere: ptr<storage, Geom, read_write>, r: Ray) -> HitInfo {
+fn sphereIntersectionTest(sphere: ptr<storage, Geom, read>, r: Ray) -> HitInfo {
     var ret : HitInfo;
     ret.hitTriIndex = -1;
 
@@ -196,7 +196,9 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Trian
     var stack: array<u32, 32>;
     var stackPtr: i32 = 0;
 
-    stack[0] = mesh.bvhRootNodeIdx;
+    // TODO: add fallback to normal search if bvh not defined (root index -1)
+
+    stack[0] = u32(mesh.bvhRootNodeIdx);
     stackPtr = 1;
 
     var t_min = 1e38;
@@ -206,10 +208,13 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Trian
         let nodeIdx = stack[stackPtr];
         let node = bvhNodes.nodes[nodeIdx];
 
-        if (rayIntersectsAABB(objRay, node.boundsMin, node.boundsMax)) {
+        // TODO: Ignore if triangle start is -1
+        let triangleStart = u32(node.triangleStart);
+
+        if (rayIntersectsAABB(objRay, node.boundsMin.xyz, node.boundsMax.xyz)) {
             if (node.leftChild == -1 && node.rightChild == -1) {
                 // Leaf node
-                for (var i = node.triangleStart; i < node.triangleStart + node.triangleCount; i = i + 1u) {
+                for (var i = triangleStart; i < triangleStart + node.triangleCount; i = i + 1u) {
                     let tri = tris.tris[i];
                     let hitInfo = triangleIntersectionTest(tri, objRay);
                     if (hitInfo.dist > 0.0 && hitInfo.dist < t_min) {
@@ -223,10 +228,11 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Trian
                 }
             } else {
                 // Internal node
-                stack[stackPtr] = node.leftChild;
+                // TODO: Skip if child is -1
+                stack[stackPtr] = u32(node.leftChild);
                 stackPtr += 1;
-                stack[stackPtr] = node.rightChild;
-                stackPtr = += 1;
+                stack[stackPtr] = u32(node.rightChild);
+                stackPtr += 1;
             }
         }
     }
