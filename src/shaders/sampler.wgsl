@@ -1,5 +1,6 @@
-fn randomDirectionInHemisphere(normal: vec3f) -> vec3f
+fn randomDirectionInHemisphere(normal_: vec3f) -> vec3f
 {
+    let normal = normalize(normal_);
     let up = sqrt(rand()); // cos(theta)
     let over = sqrt(1.0 - up * up); // sin(theta)
     let around = rand() * TWO_PI;

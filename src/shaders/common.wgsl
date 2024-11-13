@@ -1,7 +1,7 @@
 const PI = 3.1415926535897932384626422832795028841971;
 const TWO_PI = 6.2831853071795864769252867665590057683943;
 const SQRT_OF_ONE_THIRD = 0.5773502691896257645091487805019574556476;
-const EPSILON = 0.00001;
+const EPSILON = 0.0001;
 
 struct Light {
     pos : vec3f,
@@ -44,14 +44,12 @@ struct PathSegments
 // Order is weird to make it more compact
 struct Geom
 {
+    // geomType : i32, // 0 == CUBE, 1 == SPHERE
+    // materialid : i32,
+    params : vec4f,
     transform : mat4x4f,
     inverseTransform : mat4x4f,
     invTranspose : mat4x4f,
-    translation : vec3<f32>,
-    geomType : u32, // 0 == CUBE, 1 == SPHERE
-    rotation : vec3<f32>,
-    materialid : i32,
-    scale : vec3<f32>,
 };
 
 struct Geoms
@@ -62,10 +60,11 @@ struct Geoms
 
 struct Material
 {
+    // matType : u32, // 0 == emissive, 1 == lambertian
+    // emittance : f32,
+    // roughness : f32,
+    params : vec3f,
     color : vec3f,
-    matType : u32, // 0 == emissive, 1 == lambertian
-    emittance : f32,
-    roughness : f32,
 };
 
 struct Materials
@@ -78,7 +77,7 @@ struct Intersection
 {
     surfaceNormal : vec3<f32>,
     t : f32,
-    materialId : i32, // materialId == -1 means no intersection
+    materialId : f32, // materialId == -1 means no intersection
 };
 
 struct Intersections
@@ -107,6 +106,7 @@ struct CameraUniforms {
     resolution : vec2<f32>,
     pixelLength : vec2<f32>,
     cameraPos : vec3<f32>,
+    numSamples : f32,
     seed : vec3u,
 }
 

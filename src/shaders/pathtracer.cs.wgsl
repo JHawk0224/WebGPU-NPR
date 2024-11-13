@@ -2,10 +2,11 @@
 @group(${bindGroup_scene}) @binding(1) var<storage, read> lightSet: LightSet;
 
 @group(${bindGroup_pathtracer}) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
-@group(${bindGroup_pathtracer}) @binding(1) var<storage, read_write> pathSegments : PathSegments;
-@group(${bindGroup_pathtracer}) @binding(2) var<storage, read_write> geoms : Geoms;
-@group(${bindGroup_pathtracer}) @binding(3) var<storage, read_write> materials : Materials;
-@group(${bindGroup_pathtracer}) @binding(4) var<storage, read_write> intersections : Intersections;
+@group(${bindGroup_pathtracer}) @binding(1) var inputTex : texture_2d<f32>;
+@group(${bindGroup_pathtracer}) @binding(2) var<storage, read_write> pathSegments : PathSegments;
+@group(${bindGroup_pathtracer}) @binding(3) var<storage, read_write> geoms : Geoms;
+@group(${bindGroup_pathtracer}) @binding(4) var<storage, read_write> materials : Materials;
+@group(${bindGroup_pathtracer}) @binding(5) var<storage, read_write> intersections : Intersections;
 
 // RNG code from https://github.com/webgpu/webgpu-samples/blob/main/sample/cornell/common.wgsl
 // A psuedo random number. Initialized with init_rand(), updated with rand().
@@ -73,11 +74,11 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
         {
             let geom = &geoms.geoms[i];
 
-            if (geom.geomType == 0)
+            if (geom.params[0] == 0.0f)
             {
                 tempHit = boxIntersectionTest(geom, pathSegment.ray);
             }
-            else if (geom.geomType == 1)
+            else if (geom.params[0] == 1.0f)
             {
                 tempHit = sphereIntersectionTest(geom, pathSegment.ray);
             }
@@ -86,6 +87,7 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
             // scene geometry object was hit first.
             if (tempHit.dist > 0.0 && tMin > tempHit.dist)
             {
+                tMin = tempHit.dist;
                 closestHit = tempHit;
                 hitGeomIndex = i;
             }
@@ -100,7 +102,7 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
         {
             // The ray hits something
             intersections.intersections[index].t = closestHit.dist;
-            intersections.intersections[index].materialId = geoms.geoms[hitGeomIndex].materialid;
+            intersections.intersections[index].materialId = geoms.geoms[hitGeomIndex].params[1];
             intersections.intersections[index].surfaceNormal = closestHit.normal;
         }
     }
@@ -109,16 +111,17 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
 fn scatterRay(index: u32) {
     let pathSegment = &pathSegments.segments[index];
     let intersect = &intersections.intersections[index];
-    let material = &materials.materials[index];
 
     if (intersect.t < 0.0) {
         // let color = vec3f(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
-        let color = vec3f(0.0);
-        // outputTex[pathSegment.pixelIndex] += pathSegment.color * color;
-        pathSegment.color = color;
+        let color = vec3f(0.3);
+        pathSegment.color *= color;
         pathSegment.remainingBounces = -2;
         return;
     }
+
+    let matId = u32(intersect.materialId);
+    let material = &materials.materials[matId];
 
     var scattered : PathSegment;
     var bsdf : vec3f;
@@ -126,22 +129,22 @@ fn scatterRay(index: u32) {
     var attenuation : vec3f;
 
     // hopefully we can template if we have time later on
-    let dirIn = pathSegment.ray.direction;
+    let dirIn = normalize(pathSegment.ray.direction);
 
-    if (material.matType == 0) { // Emissive
+    if (material.params[0] == 0.0f) { // Emissive
         pathSegment.remainingBounces = -1;
-        bsdf = evalEmissive(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color, material.emittance);
+        bsdf = evalEmissive(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color, material.params[1]);
 
         attenuation = bsdf;
-    } else if (material.matType == 1) { // Lambertian
+    } else if (material.params[0] == 1.0f) { // Lambertian
         scattered = scatterLambertian(index, pathSegment.ray.origin + pathSegment.ray.direction * intersect.t, intersect.surfaceNormal);
-        bsdf = evalLambertian(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color);
-        pdf = pdfLambertian(dirIn, pathSegment.ray.direction, intersect.surfaceNormal);
+        bsdf = evalLambertian(dirIn, scattered.ray.direction, intersect.surfaceNormal, material.color);
+        pdf = pdfLambertian(dirIn, scattered.ray.direction, intersect.surfaceNormal);
 
         attenuation = bsdf / pdf;
-    } else if (material.matType == 2) { // Metal
-        scattered = scatterMetal(index, pathSegment.ray.origin + pathSegment.ray.direction * intersect.t, intersect.surfaceNormal, material.roughness);
-        bsdf = evalMetal(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color);
+    } else if (material.params[0] == 2.0f) { // Metal
+        scattered = scatterMetal(index, pathSegment.ray.origin + pathSegment.ray.direction * intersect.t, intersect.surfaceNormal, material.params[2]);
+        bsdf = evalMetal(dirIn, scattered.ray.direction, intersect.surfaceNormal, material.color);
 
         attenuation = bsdf;
     }
@@ -155,9 +158,9 @@ fn scatterRay(index: u32) {
         return;
     }
 
-    pathSegment.color = vec3f(1.0); // *= attenuation;
+    pathSegment.color *= attenuation;
 
-    if (pathSegment.remainingBounces < 0 && material.matType != 0) {
+    if (pathSegment.remainingBounces < 0 && material.params[0] != 0.0f) {
         // did not reach a light till max depth, terminate path as invalid
         pathSegment.color = vec3f(0.0);
     }
@@ -177,6 +180,10 @@ fn integrate(@builtin(global_invocation_id) globalIdx: vec3u) {
 
         scatterRay(index);
 
-        textureStore(outputTex, globalIdx.xy, vec4(pathSegment.color, 1));
+        if (cameraUniforms.depth == 0) {
+            let accumulated = textureLoad(inputTex, globalIdx.xy, 0).xyz;
+            let resultColor = vec4(1.0 / f32(cameraUniforms.numSamples) * pathSegment.color + accumulated, 1);
+            textureStore(outputTex, globalIdx.xy, resultColor);
+        }
     }
 }
