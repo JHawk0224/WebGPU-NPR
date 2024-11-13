@@ -13,11 +13,11 @@ function hueToRgb(h: number) {
 export class Lights {
     private camera: Camera;
 
-    numLights = 100;
+    numLights = 2;
     static readonly maxNumLights = 5000;
     static readonly numFloatsPerLight = 8; // vec3f is aligned at 16 byte boundaries
 
-    static readonly lightIntensity = 0.1;
+    static readonly lightIntensity = 1.0;
 
     lightsArray = new Float32Array(Lights.maxNumLights * Lights.numFloatsPerLight);
     lightSetStorageBuffer: GPUBuffer;
@@ -110,8 +110,12 @@ export class Lights {
 
     private populateLightsBuffer() {
         for (let lightIdx = 0; lightIdx < Lights.maxNumLights; ++lightIdx) {
-            // light pos is set by compute shader so no need to set it here
+            var lightPos = vec3.create(0, 2, -1);
+            if (lightIdx > 0) {
+                lightPos = vec3.create(0, 2, 1);
+            }
             const lightColor = vec3.scale(hueToRgb(Math.random()), Lights.lightIntensity);
+            this.lightsArray.set(lightPos, lightIdx * Lights.numFloatsPerLight);
             this.lightsArray.set(lightColor, lightIdx * Lights.numFloatsPerLight + 4);
         }
 
