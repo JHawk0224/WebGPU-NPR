@@ -47,17 +47,27 @@ struct Geom
     transform : mat4x4f,
     inverseTransform : mat4x4f,
     invTranspose : mat4x4f,
-    translation : vec3<f32>,
-    geomType : u32, // 0 == CUBE, 1 == SPHERE
-    rotation : vec3<f32>,
-    materialid : i32,
-    scale : vec3<f32>,
+    geomType : u32, // 0 == CUBE, 1 == SPHERE, 2 == MESH
+    materialId : i32,
+    triangleCount : u32,
+    triangleStartIdx : u32
 };
 
-struct Geoms
-{
+struct Triangle {
+    v0: vec4f,
+    v1: vec4f,
+    v2: vec4f,
+    materialId: i32
+};
+
+struct Geoms {
     geomsSize : u32,
-    geoms : array<Geom, 2>
+    geoms : array<Geom>
+}
+
+struct Triangles {
+    trisSize : u32,
+    tris : array<Triangle>
 }
 
 struct Material
@@ -92,6 +102,7 @@ struct HitInfo
     dist : f32,
     normal : vec3<f32>,
     outside : u32,
+    hitTriIndex : i32,
 }
 
 struct CameraUniforms {

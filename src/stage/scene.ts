@@ -8,8 +8,32 @@ In particular, it is known to not work if there is a mesh with no material.
 import { registerLoaders, load } from "@loaders.gl/core";
 import { GLTFLoader, GLTFWithBuffers, GLTFMesh, GLTFMeshPrimitive, GLTFMaterial, GLTFSampler } from "@loaders.gl/gltf";
 import { ImageLoader } from "@loaders.gl/images";
-import { Mat4, mat4 } from "wgpu-matrix";
+import { vec3, Vec3, Mat4, mat4 } from "wgpu-matrix";
 import { device, materialBindGroupLayout, modelBindGroupLayout } from "../renderer";
+
+export interface GeomData {
+    transform: Mat4;
+    inverseTransform: Mat4;
+    invTranspose: Mat4;
+    geomType: number;
+    materialId: number;
+    triangleCount: number;
+    triangleStartIdx: number;
+}
+
+export interface TriangleData {
+    v0: Vec3;
+    v1: Vec3;
+    v2: Vec3;
+    materialId: number;
+}
+
+export interface MaterialData {
+    color: Vec3;
+    matType: number;
+    emittance: number;
+    roughness: number;
+}
 
 export function setupLoaders() {
     registerLoaders([GLTFLoader, ImageLoader]);
@@ -39,6 +63,11 @@ export class Material {
     readonly id: number;
 
     materialBindGroup: GPUBindGroup;
+
+    color: Vec3;
+    matType: number;
+    emittance: number;
+    roughness: number;
 
     constructor(gltfMaterial: GLTFMaterial, textures: Texture[]) {
         this.id = Material.nextId++;
@@ -85,6 +114,16 @@ export class Material {
                 ],
             });
         }
+
+        if (gltfMaterial.pbrMetallicRoughness?.baseColorFactor) {
+            this.color = vec3.fromValues(...gltfMaterial.pbrMetallicRoughness.baseColorFactor.slice(0, 3));
+        } else {
+            this.color = vec3.fromValues(1.0, 1.0, 1.0);
+        }
+
+        this.matType = 0;
+        this.emittance = 0.0;
+        this.roughness = gltfMaterial.pbrMetallicRoughness?.roughnessFactor ?? 1.0;
     }
 }
 
@@ -94,6 +133,9 @@ export class Primitive {
     numIndices = -1;
 
     material: Material;
+
+    vertsArray: Float32Array;
+    indicesArray: Uint32Array;
 
     constructor(gltfPrim: GLTFMeshPrimitive, gltfWithBuffers: GLTFWithBuffers, material: Material) {
         this.material = material;
@@ -155,6 +197,8 @@ export class Primitive {
         device.queue.writeBuffer(this.vertexBuffer, 0, vertsArray);
 
         this.numIndices = indicesArray.length;
+        this.vertsArray = vertsArray;
+        this.indicesArray = indicesArray;
     }
 }
 
@@ -179,6 +223,7 @@ export class Node {
     children: Set<Node> = new Set<Node>();
 
     transform: Mat4 = mat4.identity();
+    worldTransform: Mat4 = mat4.identity();
     modelMatUniformBuffer!: GPUBuffer;
     modelBindGroup!: GPUBindGroup;
     mesh: Mesh | undefined;
@@ -196,10 +241,8 @@ export class Node {
         newParent.children.add(this);
     }
 
-    propagateTransformations() {
-        if (this.parent != undefined) {
-            this.transform = mat4.mul(this.parent.transform, this.transform);
-        }
+    propagateTransformations(parentTransform: Mat4 = mat4.identity()) {
+        this.worldTransform = mat4.mul(parentTransform, this.transform);
 
         if (this.mesh != undefined) {
             this.modelMatUniformBuffer = device.createBuffer({
@@ -208,7 +251,7 @@ export class Node {
                 usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
             });
 
-            device.queue.writeBuffer(this.modelMatUniformBuffer, 0, this.transform);
+            device.queue.writeBuffer(this.modelMatUniformBuffer, 0, this.worldTransform);
 
             this.modelBindGroup = device.createBindGroup({
                 label: "model bind group",
@@ -223,7 +266,7 @@ export class Node {
         }
 
         for (let child of this.children) {
-            child.propagateTransformations();
+            child.propagateTransformations(this.worldTransform);
         }
     }
 }
@@ -413,9 +456,11 @@ export class Scene {
                 nodeFunction(node);
 
                 for (let primitive of node.mesh.primitives) {
-                    if (primitive.material.id != lastMaterialId) {
-                        materialFunction(primitive.material);
-                        lastMaterialId = primitive.material.id;
+                    if (primitive.material) {
+                        if (primitive.material.id != lastMaterialId) {
+                            materialFunction(primitive.material);
+                            lastMaterialId = primitive.material.id;
+                        }
                     }
 
                     primFunction(primitive);
@@ -426,5 +471,72 @@ export class Scene {
                 nodes.push(childNode);
             }
         }
+    }
+
+    collectGeomsAndTris() {
+        const geomsArray: GeomData[] = [];
+        const trianglesArray: TriangleData[] = [];
+        let triangleStartIdx = 0;
+
+        const traverse = (node: Node) => {
+            if (node.mesh) {
+                const geomData: GeomData = {
+                    transform: node.worldTransform,
+                    inverseTransform: mat4.inverse(node.worldTransform),
+                    invTranspose: mat4.transpose(mat4.inverse(node.worldTransform)),
+                    geomType: 2, // MESH
+                    materialId: 0,
+                    triangleCount: 0,
+                    triangleStartIdx: triangleStartIdx,
+                };
+
+                let meshTriangleCount = 0;
+                for (const primitive of node.mesh.primitives) {
+                    const vertsArray = primitive.vertsArray;
+                    const indicesArray = primitive.indicesArray;
+                    const numVerts = vertsArray.length / 8; // 8 floats per vertex
+                    const positions = [];
+
+                    for (let i = 0; i < numVerts; i++) {
+                        const x = vertsArray[i * 8];
+                        const y = vertsArray[i * 8 + 1];
+                        const z = vertsArray[i * 8 + 2];
+                        const pos = [x, y, z, 1.0];
+                        const transformedPos = vec3.transformMat4(pos, node.worldTransform);
+                        positions.push(transformedPos.slice(0, 3));
+                    }
+
+                    for (let i = 0; i < indicesArray.length; i += 3) {
+                        const idx0 = indicesArray[i];
+                        const idx1 = indicesArray[i + 1];
+                        const idx2 = indicesArray[i + 2];
+                        const v0 = positions[idx0];
+                        const v1 = positions[idx1];
+                        const v2 = positions[idx2];
+                        const triangle = {
+                            v0,
+                            v1,
+                            v2,
+                            materialId: primitive.material?.id ?? 0,
+                        };
+                        trianglesArray.push(triangle);
+                        meshTriangleCount += 1;
+                    }
+                }
+
+                geomData.triangleCount = meshTriangleCount;
+                geomData.triangleStartIdx = triangleStartIdx;
+                triangleStartIdx += meshTriangleCount;
+                geomsArray.push(geomData);
+            }
+
+            for (const child of node.children) {
+                traverse(child);
+            }
+        };
+
+        traverse(this.root);
+
+        return { geomsArray, trianglesArray };
     }
 }

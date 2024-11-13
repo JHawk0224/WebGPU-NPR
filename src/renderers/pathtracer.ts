@@ -1,7 +1,8 @@
-import { mat4, vec4 } from "wgpu-matrix";
+import { vec3, mat4, Mat4, Vec3 } from "wgpu-matrix";
 import * as renderer from "../renderer";
 import * as shaders from "../shaders/shaders";
 import { Stage } from "../stage/stage";
+import { GeomData, TriangleData, MaterialData } from "../stage/scene";
 
 export class Pathtracer extends renderer.Renderer {
     sceneUniformsBindGroupLayout: GPUBindGroupLayout;
@@ -12,10 +13,13 @@ export class Pathtracer extends renderer.Renderer {
 
     emptyBuffer: GPUBuffer;
 
-    geomsArray = new Float32Array(60);
+    geomsBufferData: ArrayBuffer;
+    trisBufferData: ArrayBuffer;
+    materialsBufferData: ArrayBuffer;
 
     pathSegmentsStorageBuffer: GPUBuffer;
     geomsStorageBuffer: GPUBuffer;
+    trisStorageBuffer: GPUBuffer;
     materialsStorageBuffer: GPUBuffer;
     intersectionsStorageBuffer: GPUBuffer;
 
@@ -31,6 +35,215 @@ export class Pathtracer extends renderer.Renderer {
     renderTextureBindGroup: GPUBindGroup;
 
     pipeline: GPURenderPipeline;
+
+    createGeomsAndTrisBuffer() {
+        const { geomsArray, trianglesArray } = this.scene.collectGeomsAndTris();
+
+        // const identityMat4 = mat4.transpose(
+        //     mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+        // );
+        // for (let geomIdx = 0; geomIdx < 4; geomIdx++) {
+        //     if (geomIdx == 0) {
+        //         // A cube
+        //         const geom: GeomData = {
+        //             transform: identityMat4,
+        //             inverseTransform: mat4.inverse(identityMat4),
+        //             invTranspose: mat4.transpose(mat4.inverse(identityMat4)),
+        //             geomType: 0,
+        //             materialId: 0,
+        //             triangleCount: 0,
+        //             triangleStartIdx: 0,
+        //         };
+        //         geomsArray.push(geom);
+        //     } else if (geomIdx == 1) {
+        //         // Left Light
+        //         const translateMat4 = mat4.transpose(
+        //             mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        //         );
+        //         const geom: GeomData = {
+        //             transform: translateMat4,
+        //             inverseTransform: mat4.inverse(translateMat4),
+        //             invTranspose: mat4.transpose(mat4.inverse(translateMat4)),
+        //             geomType: 0,
+        //             materialId: 1,
+        //             triangleCount: 0,
+        //             triangleStartIdx: 0,
+        //         };
+        //         geomsArray.push(geom);
+        //     } else if (geomIdx == 2) {
+        //         // Triangle
+        //         const translateMat4 = mat4.transpose(
+        //             mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 1.0)
+        //         );
+        //         const geom: GeomData = {
+        //             transform: identityMat4,
+        //             inverseTransform: mat4.inverse(identityMat4),
+        //             invTranspose: mat4.transpose(mat4.inverse(identityMat4)),
+        //             geomType: 2,
+        //             materialId: 0,
+        //             triangleCount: 2,
+        //             triangleStartIdx: trianglesArray.length,
+        //         };
+        //         const triangle = {
+        //             v0: vec3.create(0.0, 0.0, 0.0),
+        //             v1: vec3.create(0.0, 2.0, 1.0),
+        //             v2: vec3.create(0.0, 2.0, -1.0),
+        //             materialId: 0,
+        //         };
+        //         const triangle2 = {
+        //             v0: vec3.create(0.0, 0.0, 3.0),
+        //             v1: vec3.create(0.0, 2.0, 4.0),
+        //             v2: vec3.create(0.0, 2.0, 2.0),
+        //             materialId: 0,
+        //         };
+        //         geomsArray.push(geom);
+        //         trianglesArray.push(triangle);
+        //         trianglesArray.push(triangle2);
+        //     } else {
+        //         // Right Light
+        //         const translateMat4 = mat4.transpose(
+        //             mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 1.0)
+        //         );
+        //         const geom: GeomData = {
+        //             transform: translateMat4,
+        //             inverseTransform: mat4.inverse(translateMat4),
+        //             invTranspose: mat4.transpose(mat4.inverse(translateMat4)),
+        //             geomType: 1,
+        //             materialId: 2,
+        //             triangleCount: 0,
+        //             triangleStartIdx: 0,
+        //         };
+        //         geomsArray.push(geom);
+        //     }
+        // }
+
+        // Prepare geoms buffer
+        const geomsSize = geomsArray.length;
+        const geomsBufferSize = 16 + geomsSize * (16 * 4 * 3 + 4 * 4);
+        const geomsBuffer = new ArrayBuffer(geomsBufferSize);
+        const geomsDataView = new DataView(geomsBuffer);
+        let offset = 0;
+
+        geomsDataView.setUint32(offset, geomsSize, true);
+        offset += 16;
+
+        for (const geomData of geomsArray) {
+            for (const mat of [geomData.transform, geomData.inverseTransform, geomData.invTranspose]) {
+                for (let i = 0; i < 16; i++) {
+                    geomsDataView.setFloat32(offset, mat[i], true);
+                    offset += 4;
+                }
+            }
+            geomsDataView.setUint32(offset, geomData.geomType, true);
+            offset += 4;
+            geomsDataView.setInt32(offset, geomData.materialId, true);
+            offset += 4;
+            geomsDataView.setUint32(offset, geomData.triangleCount, true);
+            offset += 4;
+            geomsDataView.setUint32(offset, geomData.triangleStartIdx, true);
+            offset += 4;
+        }
+
+        // Prepare triangles buffer
+        const trianglesSize = trianglesArray.length;
+        const trisBufferSize = 16 + trianglesSize * (16 * 3 + 16);
+        const trisBuffer = new ArrayBuffer(trisBufferSize);
+        const trisDataView = new DataView(trisBuffer);
+        offset = 0;
+
+        trisDataView.setUint32(offset, trianglesSize, true);
+        offset += 16;
+
+        for (const triangle of trianglesArray) {
+            for (const vertex of [triangle.v0, triangle.v1, triangle.v2]) {
+                for (let i = 0; i < 3; i++) {
+                    trisDataView.setFloat32(offset, vertex[i], true);
+                    offset += 4;
+                }
+                offset += 4;
+            }
+            trisDataView.setInt32(offset, triangle.materialId, true);
+            offset += 16;
+        }
+
+        console.log(geomsArray.length, trianglesArray.length);
+        console.log(geomsArray);
+        console.log(trianglesArray);
+        return { geomsBuffer, trisBuffer };
+    }
+
+    createMaterialsBuffer() {
+        const materialsArray: number[] = [];
+        this.scene.iterate(
+            () => {},
+            (material) => {
+                materialsArray.push(material.color[0], material.color[1], material.color[2]);
+                materialsArray.push(material.matType);
+                materialsArray.push(material.emittance);
+                materialsArray.push(material.roughness);
+            },
+            () => {}
+        );
+
+        for (let matIdx = 0; matIdx < 3; matIdx++) {
+            let mat: MaterialData;
+            if (matIdx == 0) {
+                mat = {
+                    matType: 2,
+                    emittance: 0.0,
+                    roughness: 0.0,
+                    color: vec3.create(1.0, 1.0, 1.0),
+                };
+            } else if (matIdx == 1) {
+                mat = {
+                    matType: 0,
+                    emittance: 1.0,
+                    roughness: 0.0,
+                    color: vec3.create(1.0, 0.0, 0.0),
+                };
+            } else if (matIdx == 2) {
+                mat = {
+                    matType: 0,
+                    emittance: 1.0,
+                    roughness: 0.0,
+                    color: vec3.create(0.0, 1.0, 0.0),
+                };
+            } else {
+                continue;
+            }
+            materialsArray[matIdx * 6 + 0] = mat.color[0];
+            materialsArray[matIdx * 6 + 1] = mat.color[1];
+            materialsArray[matIdx * 6 + 2] = mat.color[2];
+            materialsArray[matIdx * 6 + 3] = mat.matType;
+            materialsArray[matIdx * 6 + 4] = mat.emittance;
+            materialsArray[matIdx * 6 + 5] = mat.roughness;
+        }
+
+        const materialsSize = materialsArray.length / 6;
+        const buffer = new ArrayBuffer(16 + materialsSize * (16 + 16));
+        const dataView = new DataView(buffer);
+        let offset = 0;
+
+        dataView.setUint32(offset, materialsSize, true);
+        offset += 16;
+
+        for (let i = 0; i < materialsArray.length; i += 6) {
+            dataView.setFloat32(offset, materialsArray[i], true); // color.x
+            offset += 4;
+            dataView.setFloat32(offset, materialsArray[i + 1], true); // color.y
+            offset += 4;
+            dataView.setFloat32(offset, materialsArray[i + 2], true); // color.z
+            offset += 8;
+            dataView.setUint32(offset, materialsArray[i + 3], true); // matType
+            offset += 4;
+            dataView.setFloat32(offset, materialsArray[i + 4], true); // emittance
+            offset += 4;
+            dataView.setFloat32(offset, materialsArray[i + 5], true); // roughness
+            offset += 8;
+        }
+
+        return buffer;
+    }
 
     constructor(stage: Stage) {
         super(stage);
@@ -88,15 +301,26 @@ export class Pathtracer extends renderer.Renderer {
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
+        const { geomsBuffer, trisBuffer } = this.createGeomsAndTrisBuffer();
+        this.geomsBufferData = geomsBuffer;
+        this.trisBufferData = trisBuffer;
+        this.materialsBufferData = this.createMaterialsBuffer();
+
         this.geomsStorageBuffer = renderer.device.createBuffer({
             label: "geoms",
-            size: 16 + 240 * 2, // 16 + 240 * number of geoms
+            size: this.geomsBufferData.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+
+        this.trisStorageBuffer = renderer.device.createBuffer({
+            label: "tris",
+            size: this.trisBufferData.byteLength,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
         this.materialsStorageBuffer = renderer.device.createBuffer({
             label: "materials",
-            size: 16 + 32 * 2,
+            size: this.materialsBufferData.byteLength,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
@@ -138,14 +362,20 @@ export class Pathtracer extends renderer.Renderer {
                     buffer: { type: "storage" },
                 },
                 {
-                    // materials
+                    // tris
                     binding: 3,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" },
                 },
                 {
-                    // intersections
+                    // materials
                     binding: 4,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" },
+                },
+                {
+                    // intersections
+                    binding: 5,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" },
                 },
@@ -170,10 +400,14 @@ export class Pathtracer extends renderer.Renderer {
                 },
                 {
                     binding: 3,
-                    resource: { buffer: this.materialsStorageBuffer },
+                    resource: { buffer: this.trisStorageBuffer },
                 },
                 {
                     binding: 4,
+                    resource: { buffer: this.materialsStorageBuffer },
+                },
+                {
+                    binding: 5,
                     resource: { buffer: this.intersectionsStorageBuffer },
                 },
             ],
@@ -277,26 +511,18 @@ export class Pathtracer extends renderer.Renderer {
                 ],
             },
         });
+
+        renderer.device.queue.writeBuffer(this.geomsStorageBuffer, 0, this.geomsBufferData);
+        renderer.device.queue.writeBuffer(this.trisStorageBuffer, 0, this.trisBufferData);
+        renderer.device.queue.writeBuffer(this.materialsStorageBuffer, 0, this.materialsBufferData);
     }
 
     override draw() {
-        // A cube
-        for (let geomIdx = 0; geomIdx < 1; geomIdx++) {
-            this.geomsArray.set(mat4.identity(), 0);
-            this.geomsArray.set(mat4.identity(), 16);
-            this.geomsArray.set(mat4.identity(), 32);
-            this.geomsArray.set(vec4.zero(), 48);
-            this.geomsArray.set(vec4.zero(), 52);
-            this.geomsArray.set(vec4.zero(), 56);
-        }
-
-        renderer.device.queue.writeBuffer(this.geomsStorageBuffer, 0, new Uint32Array([1]));
-        renderer.device.queue.writeBuffer(this.geomsStorageBuffer, 16, this.geomsArray);
-
         const encoder = renderer.device.createCommandEncoder();
         const canvasTextureView = renderer.context.getCurrentTexture().createView();
 
         for (let s = 0; s < this.camera.samples; s++) {
+            console.log("NEW PASs");
             for (let d = 0; d < this.camera.rayDepth; d++) {
                 this.camera.updateDepth(this.camera.rayDepth - d);
 
