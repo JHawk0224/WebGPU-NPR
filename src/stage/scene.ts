@@ -11,6 +11,8 @@ import { ImageLoader } from "@loaders.gl/images";
 import { vec3, Vec3, Mat4, mat4 } from "wgpu-matrix";
 import { device, materialBindGroupLayout, modelBindGroupLayout } from "../renderer";
 
+const enableBVH = true;
+
 export interface GeomData {
     transform: Mat4;
     inverseTransform: Mat4;
@@ -613,15 +615,26 @@ export class Scene {
                 geomData.triangleCount = triangleCount;
                 triangleStartIdx += triangleCount;
 
-                // Build BVH for this mesh
-                const bvhNodeStartIdx = bvhNodesArray.length;
-                const bvhRootNodeIdx = this.buildBVH(
-                    trianglesArray,
-                    triangleStartIdx - triangleCount,
-                    triangleStartIdx,
-                    bvhNodesArray
-                );
-                geomData.bvhRootNodeIdx = bvhRootNodeIdx + bvhNodeStartIdx;
+                if (enableBVH) {
+                    // Build BVH for this mesh
+                    const bvhNodeStartIdx = bvhNodesArray.length;
+                    const bvhRootNodeIdx = this.buildBVH(
+                        trianglesArray,
+                        triangleStartIdx - triangleCount,
+                        triangleStartIdx,
+                        bvhNodesArray
+                    );
+                    geomData.bvhRootNodeIdx = bvhRootNodeIdx + bvhNodeStartIdx;
+                } else {
+                    bvhNodesArray.push({
+                        boundsMin: vec3.create(0, 0, 0),
+                        boundsMax: vec3.create(0, 0, 0),
+                        leftChild: -1,
+                        rightChild: -1,
+                        triangleStart: -1,
+                        triangleCount: 0,
+                    });
+                }
 
                 geomsArray.push(geomData);
             }

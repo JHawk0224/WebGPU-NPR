@@ -193,46 +193,68 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Trian
     objRay.origin = ro;
     objRay.direction = rd;
 
-    var stack: array<u32, 32>;
-    var stackPtr: i32 = 0;
-
-    // TODO: add fallback to normal search if bvh not defined (root index -1)
-
-    stack[0] = u32(mesh.bvhRootNodeIdx);
-    stackPtr = 1;
-
     var t_min = 1e38;
 
-    while (stackPtr > 0) {
-        stackPtr -= 1;
-        let nodeIdx = stack[stackPtr];
-        let node = bvhNodes.nodes[nodeIdx];
+    if (mesh.bvhRootNodeIdx == -1) {
+        // BVH disabled, use normal triangle intersection
+        if (mesh.triangleStartIdx >= 0) {
+            for (var i = 0u; i < mesh.triangleCount; i = i + 1u) {
+                let tri = tris.tris[u32(mesh.triangleStartIdx) + i];
+                let hitInfo = triangleIntersectionTest(tri, objRay);
+                if (hitInfo.dist > 0.0 && hitInfo.dist < t_min) {
+                    t_min = hitInfo.dist;
+                    ret.intersectionPoint = hitInfo.intersectionPoint;
+                    ret.normal = hitInfo.normal;
+                    ret.outside = hitInfo.outside;
+                    ret.dist = hitInfo.dist;
+                    ret.hitTriIndex = mesh.triangleStartIdx + i32(i);
+                }
+            }
+        }
+    } else {
+        // BVH enabled
+        var stack: array<u32, 32>;
+        var stackPtr: i32 = 0;
+        stack[0] = u32(mesh.bvhRootNodeIdx);
+        stackPtr = 1;
 
-        // TODO: Ignore if triangle start is -1
-        let triangleStart = u32(node.triangleStart);
+        while (stackPtr > 0) {
+            stackPtr -= 1;
+            let nodeIdx = stack[stackPtr];
+            let node = bvhNodes.nodes[nodeIdx];
 
-        if (rayIntersectsAABB(objRay, node.boundsMin.xyz, node.boundsMax.xyz)) {
-            if (node.leftChild == -1 && node.rightChild == -1) {
-                // Leaf node
-                for (var i = triangleStart; i < triangleStart + node.triangleCount; i = i + 1u) {
-                    let tri = tris.tris[i];
-                    let hitInfo = triangleIntersectionTest(tri, objRay);
-                    if (hitInfo.dist > 0.0 && hitInfo.dist < t_min) {
-                        t_min = hitInfo.dist;
-                        ret.intersectionPoint = hitInfo.intersectionPoint;
-                        ret.normal = hitInfo.normal;
-                        ret.outside = hitInfo.outside;
-                        ret.dist = hitInfo.dist;
-                        ret.hitTriIndex = i32(i);
+            if (node.triangleCount <= 0) {
+                continue;
+            }
+
+            let triangleStart = u32(node.triangleStart);
+
+            if (rayIntersectsAABB(objRay, node.boundsMin.xyz, node.boundsMax.xyz)) {
+                if (node.leftChild == -1 && node.rightChild == -1) {
+                    // Leaf node
+                    for (var i = triangleStart; i < triangleStart + node.triangleCount; i = i + 1u) {
+                        let tri = tris.tris[i];
+                        let hitInfo = triangleIntersectionTest(tri, objRay);
+                        if (hitInfo.dist > 0.0 && hitInfo.dist < t_min) {
+                            t_min = hitInfo.dist;
+                            ret.intersectionPoint = hitInfo.intersectionPoint;
+                            ret.normal = hitInfo.normal;
+                            ret.outside = hitInfo.outside;
+                            ret.dist = hitInfo.dist;
+                            ret.hitTriIndex = i32(i);
+                        }
+                    }
+                } else {
+                    // Internal node
+                    if (node.leftChild != -1) {
+                        stack[stackPtr] = u32(node.leftChild);
+                        stackPtr += 1;
+                    }
+                    if (node.rightChild != -1) {
+                        stack[stackPtr] = u32(node.rightChild);
+                        stackPtr += 1;
                     }
                 }
-            } else {
-                // Internal node
-                // TODO: Skip if child is -1
-                stack[stackPtr] = u32(node.leftChild);
-                stackPtr += 1;
-                stack[stackPtr] = u32(node.rightChild);
-                stackPtr += 1;
             }
         }
     }
