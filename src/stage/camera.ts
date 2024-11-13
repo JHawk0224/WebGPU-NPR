@@ -76,6 +76,10 @@ class CameraUniforms {
         }
     }
 
+    set numSamples(numSamples: f32) {
+        this.floatView[87] = numSamples;
+    }
+
     set seed(seed: Vec3) {
         for (let i = 0; i < 3; i++) {
             this.floatView[i + 88] = seed[i];
@@ -100,7 +104,7 @@ export class Camera {
     static readonly nearPlane = 0.1;
     static readonly farPlane = 1000;
 
-    rayDepth: number = 2;
+    rayDepth: number = 8;
     samples: number = 1;
 
     keys: { [key: string]: boolean } = {};
@@ -117,6 +121,8 @@ export class Camera {
         this.uniforms.projInvMat = mat4.inverse(this.projMat);
         this.uniforms.nearFar = vec2.create(Camera.nearPlane, Camera.farPlane);
         this.uniforms.resolution = vec2.create(canvas.width, canvas.height);
+        this.uniforms.depth = this.rayDepth;
+        this.uniforms.numSamples = this.samples;
 
         let yscaled = Math.tan(fovYDegrees * (Math.PI / 180));
         let xscaled = (yscaled * canvas.width) / canvas.height;
@@ -226,7 +232,8 @@ export class Camera {
     }
 
     updateDepth(depth: number) {
-        this.uniforms.depth = depth;
+        this.rayDepth = depth;
+        this.uniforms.depth = this.rayDepth;
 
         device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
     }

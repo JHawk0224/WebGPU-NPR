@@ -1,7 +1,7 @@
 const PI = 3.1415926535897932384626422832795028841971;
 const TWO_PI = 6.2831853071795864769252867665590057683943;
 const SQRT_OF_ONE_THIRD = 0.5773502691896257645091487805019574556476;
-const EPSILON = 0.00001;
+const EPSILON = 0.0001;
 
 struct Light {
     pos : vec3f,
@@ -87,10 +87,11 @@ struct BVHNodes {
 
 struct Material
 {
+    // matType : u32, // 0 == emissive, 1 == lambertian
+    // emittance : f32,
+    // roughness : f32,
+    params : vec3f,
     color : vec3f,
-    matType : u32, // 0 == emissive, 1 == lambertian
-    emittance : f32,
-    roughness : f32
 };
 
 struct Materials
@@ -133,6 +134,7 @@ struct CameraUniforms {
     resolution : vec2<f32>,
     pixelLength : vec2<f32>,
     cameraPos : vec3<f32>,
+    numSamples : f32,
     seed : vec3u
 }
 

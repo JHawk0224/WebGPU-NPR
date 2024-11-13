@@ -11,7 +11,7 @@ import { ImageLoader } from "@loaders.gl/images";
 import { vec3, Vec3, Mat4, mat4 } from "wgpu-matrix";
 import { device, materialBindGroupLayout, modelBindGroupLayout } from "../renderer";
 
-const enableBVH = true;
+const enableBVH = false;
 
 export interface GeomData {
     transform: Mat4;
