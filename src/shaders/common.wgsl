@@ -81,7 +81,7 @@ struct Material
 struct Materials
 {
     materialsSize : u32,
-    materials : array<Material, 2>
+    materials : array<Material>
 }
 
 struct Intersection

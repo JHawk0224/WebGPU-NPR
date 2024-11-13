@@ -185,39 +185,19 @@ export class Pathtracer extends renderer.Renderer {
             () => {}
         );
 
-        for (let matIdx = 0; matIdx < 3; matIdx++) {
-            let mat: MaterialData;
-            if (matIdx == 0) {
-                mat = {
-                    matType: 2,
-                    emittance: 0.0,
-                    roughness: 0.0,
-                    color: vec3.create(1.0, 1.0, 1.0),
-                };
-            } else if (matIdx == 1) {
-                mat = {
-                    matType: 0,
-                    emittance: 1.0,
-                    roughness: 0.0,
-                    color: vec3.create(1.0, 0.0, 0.0),
-                };
-            } else if (matIdx == 2) {
-                mat = {
-                    matType: 0,
-                    emittance: 1.0,
-                    roughness: 0.0,
-                    color: vec3.create(0.0, 1.0, 0.0),
-                };
-            } else {
-                continue;
-            }
-            materialsArray[matIdx * 6 + 0] = mat.color[0];
-            materialsArray[matIdx * 6 + 1] = mat.color[1];
-            materialsArray[matIdx * 6 + 2] = mat.color[2];
-            materialsArray[matIdx * 6 + 3] = mat.matType;
-            materialsArray[matIdx * 6 + 4] = mat.emittance;
-            materialsArray[matIdx * 6 + 5] = mat.roughness;
-        }
+        const mat = {
+            matType: 1,
+            emittance: 1.0,
+            roughness: 0.0,
+            color: vec3.create(0.0, 1.0, 0.0),
+        };
+        const matIdx = 0;
+        materialsArray[matIdx * 6 + 0] = mat.color[0];
+        materialsArray[matIdx * 6 + 1] = mat.color[1];
+        materialsArray[matIdx * 6 + 2] = mat.color[2];
+        materialsArray[matIdx * 6 + 3] = mat.matType;
+        materialsArray[matIdx * 6 + 4] = mat.emittance;
+        materialsArray[matIdx * 6 + 5] = mat.roughness;
 
         const materialsSize = materialsArray.length / 6;
         const buffer = new ArrayBuffer(16 + materialsSize * (16 + 16));
@@ -233,13 +213,13 @@ export class Pathtracer extends renderer.Renderer {
             dataView.setFloat32(offset, materialsArray[i + 1], true); // color.y
             offset += 4;
             dataView.setFloat32(offset, materialsArray[i + 2], true); // color.z
-            offset += 8;
+            offset += 4;
             dataView.setUint32(offset, materialsArray[i + 3], true); // matType
             offset += 4;
             dataView.setFloat32(offset, materialsArray[i + 4], true); // emittance
             offset += 4;
             dataView.setFloat32(offset, materialsArray[i + 5], true); // roughness
-            offset += 8;
+            offset += 12;
         }
 
         return buffer;

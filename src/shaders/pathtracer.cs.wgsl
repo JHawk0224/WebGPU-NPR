@@ -50,7 +50,7 @@ fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
         segment.ray.origin = cameraUniforms.cameraPos + cameraUniforms.right * apertureOrigin[0] + cameraUniforms.up * apertureOrigin[1];
         // segment.ray.direction = normalize(segment.ray.direction * cameraUniforms.focalLength + cameraUniforms.position - segment.ray.origin);
 
-        segment.color = vec3(1.0f, 1.0f, 1.0f);
+        segment.color = vec3f(1.0);
         segment.pixelIndex = i32(index);
         segment.remainingBounces = i32(cameraUniforms.depth);
     }
