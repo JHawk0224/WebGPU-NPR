@@ -3,10 +3,11 @@
 
 @group(${bindGroup_pathtracer}) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(${bindGroup_pathtracer}) @binding(1) var<storage, read_write> pathSegments : PathSegments;
-@group(${bindGroup_pathtracer}) @binding(2) var<storage, read_write> geoms : Geoms;
-@group(${bindGroup_pathtracer}) @binding(3) var<storage, read_write> tris : Triangles;
-@group(${bindGroup_pathtracer}) @binding(4) var<storage, read_write> materials : Materials;
-@group(${bindGroup_pathtracer}) @binding(5) var<storage, read_write> intersections : Intersections;
+@group(${bindGroup_pathtracer}) @binding(2) var<storage, read> geoms : Geoms;
+@group(${bindGroup_pathtracer}) @binding(3) var<storage, read> tris : Triangles;
+@group(${bindGroup_pathtracer}) @binding(4) var<storage, read> bvhNodes : BVHNodes;
+@group(${bindGroup_pathtracer}) @binding(5) var<storage, read> materials : Materials;
+@group(${bindGroup_pathtracer}) @binding(6) var<storage, read_write> intersections : Intersections;
 
 // RNG code from https://github.com/webgpu/webgpu-samples/blob/main/sample/cornell/common.wgsl
 // A psuedo random number. Initialized with init_rand(), updated with rand().
@@ -84,7 +85,7 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
             }
             else if (geom.geomType == 2)
             {
-                tempHit = meshIntersectionTest(geom, &tris, pathSegment.ray);
+                tempHit = meshIntersectionTest(geom, &tris, &bvhNodes, pathSegment.ray);
             }
 
             // Compute the minimum t from the intersection tests to determine what

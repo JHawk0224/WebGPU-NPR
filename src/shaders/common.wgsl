@@ -25,7 +25,7 @@ struct ClusterSet {
 struct Ray
 {
     origin : vec3f,
-    direction : vec3f,
+    direction : vec3f
 }
 
 struct PathSegment
@@ -33,7 +33,7 @@ struct PathSegment
     ray : Ray,
     color : vec3f,
     pixelIndex : i32,
-    remainingBounces : i32,
+    remainingBounces : i32
 }
 
 struct PathSegments
@@ -50,7 +50,8 @@ struct Geom
     geomType : u32, // 0 == CUBE, 1 == SPHERE, 2 == MESH
     materialId : i32,
     triangleCount : u32,
-    triangleStartIdx : u32
+    triangleStartIdx : i32,
+    bvhRootNodeIdx : i32
 };
 
 struct Triangle {
@@ -70,12 +71,26 @@ struct Triangles {
     tris : array<Triangle>
 }
 
+struct BVHNode {
+    boundsMin: vec4f,
+    boundsMax: vec4f,
+    leftChild: i32,
+    rightChild: i32,
+    triangleStart: i32,
+    triangleCount: u32
+};
+
+struct BVHNodes {
+    nodesSize: u32,
+    nodes: array<BVHNode>
+};
+
 struct Material
 {
     color : vec3f,
     matType : u32, // 0 == emissive, 1 == lambertian
     emittance : f32,
-    roughness : f32,
+    roughness : f32
 };
 
 struct Materials
@@ -88,7 +103,7 @@ struct Intersection
 {
     surfaceNormal : vec3<f32>,
     t : f32,
-    materialId : i32, // materialId == -1 means no intersection
+    materialId : i32 // materialId == -1 means no intersection
 };
 
 struct Intersections
@@ -102,7 +117,7 @@ struct HitInfo
     dist : f32,
     normal : vec3<f32>,
     outside : u32,
-    hitTriIndex : i32,
+    hitTriIndex : i32
 }
 
 struct CameraUniforms {
@@ -118,7 +133,7 @@ struct CameraUniforms {
     resolution : vec2<f32>,
     pixelLength : vec2<f32>,
     cameraPos : vec3<f32>,
-    seed : vec3u,
+    seed : vec3u
 }
 
 // this special attenuation function ensures lights don't affect geometry outside the maximum light radius

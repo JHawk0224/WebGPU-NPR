@@ -171,13 +171,20 @@ fn triangleIntersectionTest(tri: Triangle, r: Ray) -> HitInfo {
     return ret;
 }
 
-fn meshIntersectionTest(mesh: ptr<storage, Geom, read_write>, tris: ptr<storage, Triangles, read_write>, r: Ray) -> HitInfo {
+fn rayIntersectsAABB(ray: Ray, boundsMin: vec3f, boundsMax: vec3f) -> bool {
+    var tmin = (boundsMin - ray.origin) / ray.direction;
+    var tmax = (boundsMax - ray.origin) / ray.direction;
+    var t1 = min(tmin, tmax);
+    var t2 = max(tmin, tmax);
+    var tNear = max(max(t1.x, t1.y), t1.z);
+    var tFar = min(min(t2.x, t2.y), t2.z);
+    return tNear <= tFar && tFar >= 0.0;
+}
+
+fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Triangles, read>, bvhNodes: ptr<storage, BVHNodes, read>, r: Ray) -> HitInfo {
     var ret: HitInfo;
     ret.dist = -1.0;
     ret.hitTriIndex = -1;
-
-    var t_min = 1e38;
-    var hit = false;
 
     let ro = (mesh.inverseTransform * vec4f(r.origin, 1.0)).xyz;
     let rd = normalize((mesh.inverseTransform * vec4f(r.direction, 0.0)).xyz);
@@ -186,31 +193,54 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read_write>, tris: ptr<storage,
     objRay.origin = ro;
     objRay.direction = rd;
 
-    for (var i = 0u; i < min(mesh.triangleCount, 5000); i = i + 1u) {
-        let tri = tris.tris[mesh.triangleStartIdx + i];
-        let hitInfo = triangleIntersectionTest(tri, objRay);
-        if (hitInfo.dist > 0.0 && hitInfo.dist < t_min) {
-            t_min = hitInfo.dist;
-            ret.intersectionPoint = hitInfo.intersectionPoint;
-            ret.normal = hitInfo.normal;
-            ret.outside = hitInfo.outside;
-            ret.dist = hitInfo.dist;
-            ret.hitTriIndex = i32(mesh.triangleStartIdx + i);
-            hit = true;
+    var stack: array<u32, 32>;
+    var stackPtr: i32 = 0;
+
+    stack[0] = mesh.bvhRootNodeIdx;
+    stackPtr = 1;
+
+    var t_min = 1e38;
+
+    while (stackPtr > 0) {
+        stackPtr -= 1;
+        let nodeIdx = stack[stackPtr];
+        let node = bvhNodes.nodes[nodeIdx];
+
+        if (rayIntersectsAABB(objRay, node.boundsMin, node.boundsMax)) {
+            if (node.leftChild == -1 && node.rightChild == -1) {
+                // Leaf node
+                for (var i = node.triangleStart; i < node.triangleStart + node.triangleCount; i = i + 1u) {
+                    let tri = tris.tris[i];
+                    let hitInfo = triangleIntersectionTest(tri, objRay);
+                    if (hitInfo.dist > 0.0 && hitInfo.dist < t_min) {
+                        t_min = hitInfo.dist;
+                        ret.intersectionPoint = hitInfo.intersectionPoint;
+                        ret.normal = hitInfo.normal;
+                        ret.outside = hitInfo.outside;
+                        ret.dist = hitInfo.dist;
+                        ret.hitTriIndex = i32(i);
+                    }
+                }
+            } else {
+                // Internal node
+                stack[stackPtr] = node.leftChild;
+                stackPtr += 1;
+                stack[stackPtr] = node.rightChild;
+                stackPtr = += 1;
+            }
         }
     }
 
-    if (hit) {
+    if (ret.dist > 0.0) {
         ret.intersectionPoint = (mesh.transform * vec4f(ret.intersectionPoint, 1.0)).xyz;
         ret.normal = normalize((mesh.invTranspose * vec4f(ret.normal, 0.0)).xyz);
-        if (ret.outside == 0) {
+        if (ret.outside == 0u) {
             ret.normal = -ret.normal;
         }
         ret.dist = length(r.origin - ret.intersectionPoint);
-        return ret;
     } else {
         ret.dist = -1.0;
         ret.hitTriIndex = -1;
-        return ret;
     }
+    return ret;
 }

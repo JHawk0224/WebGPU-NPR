@@ -15,11 +15,13 @@ export class Pathtracer extends renderer.Renderer {
 
     geomsBufferData: ArrayBuffer;
     trisBufferData: ArrayBuffer;
+    bvhNodesBufferData: ArrayBuffer;
     materialsBufferData: ArrayBuffer;
 
     pathSegmentsStorageBuffer: GPUBuffer;
     geomsStorageBuffer: GPUBuffer;
     trisStorageBuffer: GPUBuffer;
+    bvhNodesStorageBuffer: GPUBuffer;
     materialsStorageBuffer: GPUBuffer;
     intersectionsStorageBuffer: GPUBuffer;
 
@@ -36,8 +38,8 @@ export class Pathtracer extends renderer.Renderer {
 
     pipeline: GPURenderPipeline;
 
-    createGeomsAndTrisBuffer() {
-        const { geomsArray, trianglesArray } = this.scene.collectGeomsAndTris();
+    createGeometryBuffers() {
+        const { geomsArray, trianglesArray, bvhNodesArray } = this.scene.constructGeometry();
 
         // const identityMat4 = mat4.transpose(
         //     mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
@@ -119,7 +121,7 @@ export class Pathtracer extends renderer.Renderer {
 
         // Prepare geoms buffer
         const geomsSize = geomsArray.length;
-        const geomsBufferSize = 16 + geomsSize * (16 * 4 * 3 + 4 * 4);
+        const geomsBufferSize = 16 + geomsSize * (16 * 4 * 3 + 16 * 2);
         const geomsBuffer = new ArrayBuffer(geomsBufferSize);
         const geomsDataView = new DataView(geomsBuffer);
         let offset = 0;
@@ -140,8 +142,10 @@ export class Pathtracer extends renderer.Renderer {
             offset += 4;
             geomsDataView.setUint32(offset, geomData.triangleCount, true);
             offset += 4;
-            geomsDataView.setUint32(offset, geomData.triangleStartIdx, true);
+            geomsDataView.setInt32(offset, geomData.triangleStartIdx, true);
             offset += 4;
+            geomsDataView.setInt32(offset, geomData.bvhRootNodeIdx, true);
+            offset += 16;
         }
 
         // Prepare triangles buffer
@@ -166,10 +170,37 @@ export class Pathtracer extends renderer.Renderer {
             offset += 16;
         }
 
-        console.log(geomsArray.length, trianglesArray.length);
-        console.log(geomsArray);
-        console.log(trianglesArray);
-        return { geomsBuffer, trisBuffer };
+        const bvhNodesSize = bvhNodesArray.length;
+        const bvhNodesBufferSize = 16 + bvhNodesSize * (16 * 3);
+        const bvhNodesBuffer = new ArrayBuffer(bvhNodesBufferSize);
+        const bvhDataView = new DataView(bvhNodesBuffer);
+        offset = 0;
+
+        bvhDataView.setUint32(offset, bvhNodesSize, true);
+        offset += 16;
+
+        for (const node of bvhNodesArray) {
+            for (let i = 0; i < 3; i++) {
+                bvhDataView.setFloat32(offset, node.boundsMin[i], true);
+                offset += 4;
+            }
+            offset += 4;
+            for (let i = 0; i < 3; i++) {
+                bvhDataView.setFloat32(offset, node.boundsMax[i], true);
+                offset += 4;
+            }
+            offset += 4;
+            bvhDataView.setInt32(offset, node.leftChild, true);
+            offset += 4;
+            bvhDataView.setInt32(offset, node.rightChild, true);
+            offset += 4;
+            bvhDataView.setInt32(offset, node.triangleStart, true);
+            offset += 4;
+            bvhDataView.setUint32(offset, node.triangleCount, true);
+            offset += 4;
+        }
+
+        return { geomsBuffer, trisBuffer, bvhNodesBuffer };
     }
 
     createMaterialsBuffer() {
@@ -281,9 +312,10 @@ export class Pathtracer extends renderer.Renderer {
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
-        const { geomsBuffer, trisBuffer } = this.createGeomsAndTrisBuffer();
+        const { geomsBuffer, trisBuffer, bvhNodesBuffer } = this.createGeometryBuffers();
         this.geomsBufferData = geomsBuffer;
         this.trisBufferData = trisBuffer;
+        this.bvhNodesBufferData = bvhNodesBuffer;
         this.materialsBufferData = this.createMaterialsBuffer();
 
         this.geomsStorageBuffer = renderer.device.createBuffer({
@@ -295,6 +327,12 @@ export class Pathtracer extends renderer.Renderer {
         this.trisStorageBuffer = renderer.device.createBuffer({
             label: "tris",
             size: this.trisBufferData.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+
+        this.bvhNodesStorageBuffer = renderer.device.createBuffer({
+            label: "BVH nodes",
+            size: this.bvhNodesBufferData.byteLength,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
@@ -339,23 +377,29 @@ export class Pathtracer extends renderer.Renderer {
                     // geoms
                     binding: 2,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "storage" },
+                    buffer: { type: "read-only-storage" },
                 },
                 {
                     // tris
                     binding: 3,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "storage" },
+                    buffer: { type: "read-only-storage" },
+                },
+                {
+                    // bvh nodes
+                    binding: 4,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
                 },
                 {
                     // materials
-                    binding: 4,
+                    binding: 5,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "storage" },
+                    buffer: { type: "read-only-storage" },
                 },
                 {
                     // intersections
-                    binding: 5,
+                    binding: 6,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" },
                 },
@@ -384,10 +428,14 @@ export class Pathtracer extends renderer.Renderer {
                 },
                 {
                     binding: 4,
-                    resource: { buffer: this.materialsStorageBuffer },
+                    resource: { buffer: this.bvhNodesStorageBuffer },
                 },
                 {
                     binding: 5,
+                    resource: { buffer: this.materialsStorageBuffer },
+                },
+                {
+                    binding: 6,
                     resource: { buffer: this.intersectionsStorageBuffer },
                 },
             ],
@@ -494,6 +542,7 @@ export class Pathtracer extends renderer.Renderer {
 
         renderer.device.queue.writeBuffer(this.geomsStorageBuffer, 0, this.geomsBufferData);
         renderer.device.queue.writeBuffer(this.trisStorageBuffer, 0, this.trisBufferData);
+        renderer.device.queue.writeBuffer(this.bvhNodesStorageBuffer, 0, this.bvhNodesBufferData);
         renderer.device.queue.writeBuffer(this.materialsStorageBuffer, 0, this.materialsBufferData);
     }
 
