@@ -418,7 +418,8 @@ function convertWrapModeEnum(wrapMode: number): GPUAddressMode {
         case 0x8370: // MIRRORED_REPEAT
             return "mirror-repeat";
         default:
-            throw new Error(`unsupported wrap mode: 0x${wrapMode.toString(16)}`);
+            return "repeat";
+        // throw new Error(`unsupported wrap mode: 0x${wrapMode.toString(16)}`);
     }
 }
 
@@ -433,7 +434,8 @@ function createSampler(gltfSampler: GLTFSampler): GPUSampler {
             samplerDescriptor.magFilter = "linear";
             break;
         default:
-            throw new Error(`unsupported magFilter: 0x${gltfSampler.magFilter!.toString(16)}`);
+            samplerDescriptor.magFilter = "linear";
+        // throw new Error(`unsupported magFilter: 0x${gltfSampler.magFilter!.toString(16)}`);
     }
 
     switch (gltfSampler.minFilter) {
@@ -460,7 +462,8 @@ function createSampler(gltfSampler: GLTFSampler): GPUSampler {
             samplerDescriptor.mipmapFilter = "linear";
             break;
         default:
-            throw new Error(`unsupported minFilter: 0x${gltfSampler.minFilter!.toString(16)}`);
+            samplerDescriptor.minFilter = "linear";
+        // throw new Error(`unsupported minFilter: 0x${gltfSampler.minFilter!.toString(16)}`);
     }
 
     samplerDescriptor.addressModeU = convertWrapModeEnum(gltfSampler.wrapS!);
@@ -476,7 +479,12 @@ export class Scene {
         this.root.setName("root");
     }
 
-    async loadGltf(filePath: string) {
+    async loadGltf(
+        filePath: string,
+        scale: Vec3 = vec3.create(1, 1, 1),
+        translation: Vec3 = vec3.create(0, 0, 0),
+        rotation: Vec3 = vec3.create(0, 0, 0)
+    ) {
         const gltfWithBuffers = (await load(filePath, [GLTFLoader], {
             gltf: {
                 loadBuffers: true,
@@ -562,7 +570,14 @@ export class Scene {
             }
         }
 
-        sceneRoot.propagateTransformations();
+        const scaleMat = mat4.scaling(scale);
+        const translateMat = mat4.translation(translation);
+        const rotateX = mat4.rotationX(rotation[0]);
+        const rotateY = mat4.rotationY(rotation[1]);
+        const rotateZ = mat4.rotationZ(rotation[2]);
+        const rotateMat = mat4.mul(rotateZ, mat4.mul(rotateY, rotateX));
+        const parentMat = mat4.mul(translateMat, mat4.mul(rotateMat, scaleMat));
+        sceneRoot.propagateTransformations(parentMat);
     }
 
     iterate(
