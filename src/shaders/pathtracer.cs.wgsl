@@ -96,7 +96,10 @@ fn scatterRay(index: u32) {
 
     if (intersect.t < 0.0) {
         // let color = vec3f(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
-        let color = vec3f(0.1);
+        var color = vec3f(0.2);
+        if (pathSegment.remainingBounces == i32(cameraUniforms.depth)) {
+            color = vec3f(0.1);
+        }
         pathSegment.color *= color;
         pathSegment.remainingBounces = -2;
         return;

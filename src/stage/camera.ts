@@ -230,11 +230,4 @@ export class Camera {
 
         device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
     }
-
-    updateDepth(depth: number) {
-        this.rayDepth = depth;
-        this.uniforms.depth = this.rayDepth;
-
-        device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
-    }
 }
