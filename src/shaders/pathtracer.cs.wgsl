@@ -168,9 +168,6 @@ fn scatterRay(index: u32) {
         baseColor *= textureLookup(texDesc, uv.x, uv.y);
     }
 
-    // pathSegment.color = vec3f(uv.x, uv.y, 0.0);
-    // return;
-
     if (material.matType == 0) { // Emissive
         var emissiveColor = material.emissiveFactor.rgb;
         var emissiveFactor = vec3f(1.0);
@@ -191,10 +188,15 @@ fn scatterRay(index: u32) {
         bsdf = evalLambertian(dirIn, scattered.ray.direction, normal, baseColor);
         pdf = pdfLambertian(dirIn, scattered.ray.direction, normal);
 
-        attenuation = bsdf / pdf;
+        if (pdf == 0.0) {
+            attenuation = vec3f(1.0);
+            pathSegment.color = baseColor;
+        } else {
+            attenuation = bsdf / pdf;
+        }
     } else if (material.matType == 2) { // Metal
         scattered = scatterMetal(index, hitPoint, normal, material.roughnessFactor);
-        // bsdf = evalMetal(dirIn, scattered.ray.direction, normal, baseColor, material.metallicFactor); // TODO: Fix
+        // bsdf = evalMetal(dirIn, scattered.ray.direction, normal, baseColor, material.metallicFactor); // TODO: add metallic
         bsdf = evalMetal(dirIn, scattered.ray.direction, normal, baseColor);
 
         attenuation = bsdf;
@@ -211,7 +213,7 @@ fn scatterRay(index: u32) {
 
     pathSegment.color *= attenuation;
 
-    // if (pathSegment.remainingBounces < 0 && material.matType != 0) { // TODO: Fix
+    // if (pathSegment.remainingBounces < 0 && material.matType != 0) { // TODO: Add back
     //     // did not reach a light till max depth, terminate path as invalid
     //     pathSegment.color = vec3f(0.0);
     //     return;

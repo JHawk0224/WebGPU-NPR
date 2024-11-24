@@ -6,12 +6,12 @@ In particular, it is known to not work if there is a mesh with no material.
 */
 
 import { registerLoaders, load } from "@loaders.gl/core";
-import { GLTFLoader, GLTFWithBuffers, GLTFSampler } from "@loaders.gl/gltf";
+import { GLTFLoader, GLTFWithBuffers } from "@loaders.gl/gltf";
 import { ImageLoader } from "@loaders.gl/images";
-import { Vec2, vec3, Vec3, Mat4, mat4 } from "wgpu-matrix";
+import { vec2, Vec2, vec3, Vec3, Mat4, mat4 } from "wgpu-matrix";
 import { device } from "../renderer";
 
-const enableBVH = false;
+const enableBVH = true;
 
 export interface GeomData {
     transform: Mat4;
@@ -248,6 +248,7 @@ export class Scene {
     vertexDataArray: VertexData[] = [];
     triangleDataArray: TriangleData[] = [];
     geomDataArray: GeomData[] = [];
+    bvhNodesArray: BVHNodeData[] = [];
     textureDataArrays: Float32Array[] = [];
     textureDescriptors: TextureDescriptor[] = [];
     materialDataArray: MaterialData[] = [];
@@ -324,6 +325,13 @@ export class Scene {
 
         // Create geometry buffers for meshes
         for (const mesh of meshes) {
+            const meshVertexStartIdx = this.totalVertexCount;
+            const meshTriangleStartIdx = this.totalTriangleCount;
+            const meshVertexDataArray: VertexData[] = [];
+            const meshTriangleDataArray: TriangleData[] = [];
+            let meshVertexCount = 0;
+            let meshTriangleCount = 0;
+
             for (const primitive of mesh.primitives) {
                 if (primitive.indices === undefined) {
                     console.warn("Primitive has no indices.");
@@ -340,23 +348,28 @@ export class Scene {
                     continue;
                 }
 
-                const vertexCount = positions.length / 3;
-                for (let i = 0; i < vertexCount; i++) {
+                const localVertexCount = positions.length / 3;
+                const localVertices: VertexData[] = [];
+                for (let i = 0; i < localVertexCount; i++) {
                     const position = vec3.create(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
                     const normal = vec3.create(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
-                    const uv = vec3.create(uvs[i * 2], uvs[i * 2 + 1]);
-                    this.vertexDataArray.push({ position, normal, uv });
+                    const uv = vec2.create(uvs[i * 2], uvs[i * 2 + 1]);
+                    localVertices.push({ position, normal, uv });
                 }
 
+                const vertexOffset = meshVertexDataArray.length;
+                meshVertexDataArray.push(...localVertices);
+
+                // Adjust indices
                 const adjustedIndices = new Uint32Array(indices.length);
                 for (let i = 0; i < indices.length; i++) {
-                    adjustedIndices[i] = indices[i] + this.totalVertexCount;
+                    adjustedIndices[i] = indices[i] + vertexOffset;
                 }
 
-                const triangleCount = adjustedIndices.length / 3;
-                for (let i = 0; i < triangleCount; i++) {
+                const primitiveTriangleCount = adjustedIndices.length / 3;
+                for (let i = 0; i < primitiveTriangleCount; i++) {
                     const idx = i * 3;
-                    this.triangleDataArray.push({
+                    meshTriangleDataArray.push({
                         v0: adjustedIndices[idx + 0],
                         v1: adjustedIndices[idx + 1],
                         v2: adjustedIndices[idx + 2],
@@ -364,21 +377,109 @@ export class Scene {
                     });
                 }
 
-                this.geomDataArray.push({
-                    transform: mat4.identity(),
-                    inverseTransform: mat4.identity(),
-                    invTranspose: mat4.identity(),
-                    geomType: 2,
-                    materialId: materialIndex,
-                    triangleCount: triangleCount,
-                    triangleStartIdx: this.totalTriangleCount,
-                    bvhRootNodeIdx: -1,
-                });
+                meshVertexCount += localVertexCount;
+                meshTriangleCount += primitiveTriangleCount;
+            }
 
-                this.totalVertexCount += vertexCount;
-                this.totalTriangleCount += triangleCount;
+            for (const triangle of meshTriangleDataArray) {
+                triangle.v0 += meshVertexStartIdx;
+                triangle.v1 += meshVertexStartIdx;
+                triangle.v2 += meshVertexStartIdx;
+            }
+
+            this.vertexDataArray.push(...meshVertexDataArray);
+            this.triangleDataArray.push(...meshTriangleDataArray);
+
+            const geomData: GeomData = {
+                transform: mat4.identity(),
+                inverseTransform: mat4.identity(),
+                invTranspose: mat4.identity(),
+                geomType: 2,
+                materialId: -1,
+                triangleCount: meshTriangleCount,
+                triangleStartIdx: meshTriangleStartIdx,
+                bvhRootNodeIdx: -1,
+            };
+
+            // Build BVH for this mesh (if disabled, still do box around all triangles)
+            geomData.bvhRootNodeIdx = this.buildBVH(
+                this.triangleDataArray,
+                meshTriangleStartIdx,
+                meshTriangleStartIdx + meshTriangleCount,
+                this.bvhNodesArray,
+                enableBVH
+            );
+
+            this.geomDataArray.push(geomData);
+            this.totalVertexCount += meshVertexCount;
+            this.totalTriangleCount += meshTriangleCount;
+        }
+    }
+
+    private buildBVH(
+        trianglesArray: TriangleData[],
+        start: number,
+        end: number,
+        bvhNodes: BVHNodeData[],
+        recurse: Boolean = true
+    ): number {
+        const node: BVHNodeData = {
+            boundsMin: vec3.create(Infinity, Infinity, Infinity),
+            boundsMax: vec3.create(-Infinity, -Infinity, -Infinity),
+            leftChild: -1,
+            rightChild: -1,
+            triangleStart: start,
+            triangleCount: end - start,
+        };
+
+        for (let i = start; i < end; i++) {
+            const tri = trianglesArray[i];
+            const v0 = this.vertexDataArray[tri.v0].position;
+            const v1 = this.vertexDataArray[tri.v1].position;
+            const v2 = this.vertexDataArray[tri.v2].position;
+
+            for (let j = 0; j < 3; j++) {
+                node.boundsMin[j] = Math.min(node.boundsMin[j], v0[j], v1[j], v2[j]);
+                node.boundsMax[j] = Math.max(node.boundsMax[j], v0[j], v1[j], v2[j]);
             }
         }
+
+        const maxTrianglesPerLeaf = 4;
+        if (end - start <= maxTrianglesPerLeaf || !recurse) {
+            node.leftChild = -1;
+            node.rightChild = -1;
+        } else {
+            const extent = vec3.subtract(vec3.create(), node.boundsMax, node.boundsMin);
+            let axis = extent.indexOf(Math.max(...extent));
+
+            const trianglesToSort = trianglesArray.slice(start, end);
+            trianglesToSort.sort((a, b) => {
+                const v0a = this.vertexDataArray[a.v0].position;
+                const v1a = this.vertexDataArray[a.v1].position;
+                const v2a = this.vertexDataArray[a.v2].position;
+
+                const v0b = this.vertexDataArray[b.v0].position;
+                const v1b = this.vertexDataArray[b.v1].position;
+                const v2b = this.vertexDataArray[b.v2].position;
+
+                const aCenter = (v0a[axis] + v1a[axis] + v2a[axis]) / 3;
+                const bCenter = (v0b[axis] + v1b[axis] + v2b[axis]) / 3;
+                return aCenter - bCenter;
+            });
+
+            for (let i = start; i < end; i++) {
+                trianglesArray[i] = trianglesToSort[i - start];
+            }
+
+            const mid = Math.floor((start + end) / 2);
+            node.leftChild = this.buildBVH(trianglesArray, start, mid, bvhNodes);
+            node.rightChild = this.buildBVH(trianglesArray, mid, end, bvhNodes);
+            node.triangleStart = -1;
+            node.triangleCount = 0;
+        }
+
+        bvhNodes.push(node);
+        return bvhNodes.length - 1;
     }
 
     createBuffersAndBindGroup = () => {
@@ -463,6 +564,44 @@ export class Scene {
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
         device.queue.writeBuffer(geomBuffer, 0, geomDataView);
+
+        // BVH Buffer
+        const bvhNodesSize = this.bvhNodesArray.length;
+        const bvhNodesBufferSize = 16 + bvhNodesSize * (16 * 3);
+        const bvhNodesBuffer = new ArrayBuffer(bvhNodesBufferSize);
+        const bvhDataView = new DataView(bvhNodesBuffer);
+        offset = 0;
+
+        bvhDataView.setUint32(offset, bvhNodesSize, true);
+        offset += 16;
+
+        for (const node of this.bvhNodesArray) {
+            for (let i = 0; i < 3; i++) {
+                bvhDataView.setFloat32(offset, node.boundsMin[i], true);
+                offset += 4;
+            }
+            offset += 4;
+            for (let i = 0; i < 3; i++) {
+                bvhDataView.setFloat32(offset, node.boundsMax[i], true);
+                offset += 4;
+            }
+            offset += 4;
+            bvhDataView.setInt32(offset, node.leftChild, true);
+            offset += 4;
+            bvhDataView.setInt32(offset, node.rightChild, true);
+            offset += 4;
+            bvhDataView.setInt32(offset, node.triangleStart, true);
+            offset += 4;
+            bvhDataView.setUint32(offset, node.triangleCount, true);
+            offset += 4;
+        }
+
+        const bvhBuffer = device.createBuffer({
+            label: "bvh",
+            size: bvhNodesBuffer.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(bvhBuffer, 0, bvhNodesBuffer);
 
         // Material Buffer
         const materialsSize = this.materialDataArray.length;
@@ -550,6 +689,7 @@ export class Scene {
 
         // Bind groups
         const geometryBindGroupLayout = device.createBindGroupLayout({
+            label: "geometry bind group layout",
             entries: [
                 // Vertex buffer
                 {
@@ -578,6 +718,7 @@ export class Scene {
             ],
         });
         const textureBindGroupLayout = device.createBindGroupLayout({
+            label: "texture bind group layout",
             entries: [
                 // Material buffer
                 {
@@ -600,12 +741,11 @@ export class Scene {
             ],
         });
 
-        // TODO: Fix bvh buffer
         const geometryBindGroupEntries: GPUBindGroupEntry[] = [
             { binding: 0, resource: { buffer: vertexBuffer } },
             { binding: 1, resource: { buffer: triangleBuffer } },
             { binding: 2, resource: { buffer: geomBuffer } },
-            { binding: 3, resource: { buffer: geomBuffer } },
+            { binding: 3, resource: { buffer: bvhBuffer } },
         ];
         const textureBindGroupEntries: GPUBindGroupEntry[] = [
             { binding: 0, resource: { buffer: materialBuffer } },
@@ -614,10 +754,12 @@ export class Scene {
         ];
 
         const geometryBindGroup = device.createBindGroup({
+            label: "geometry bind group",
             layout: geometryBindGroupLayout,
             entries: geometryBindGroupEntries,
         });
         const textureBindGroup = device.createBindGroup({
+            label: "texture bind group",
             layout: textureBindGroupLayout,
             entries: textureBindGroupEntries,
         });
