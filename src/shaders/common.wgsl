@@ -108,6 +108,15 @@ struct CameraUniforms {
     cameraPos : vec3<f32>,
     numSamples : f32,
     seed : vec3u,
+    counter : u32,
+}
+
+struct StyleContext {
+    // materialId, objectId, path prefix, 
+    // currently just look at last path vertex's objectId
+    params : vec3<f32>,
+    position : vec3<f32>,
+    normal : vec3<f32>,
 }
 
 // this special attenuation function ensures lights don't affect geometry outside the maximum light radius
@@ -165,4 +174,32 @@ fn rand() -> f32 {
 
   rnd = (rnd * C) ^ (rnd.yzx >> vec3(4u));
   return f32(rnd.x ^ rnd.y) / f32(0xffffffff);
+}
+
+fn shiftIndex(invocation_id : vec3u, counter : u32) -> vec3u {
+    var ret : vec3u;
+
+    var x = invocation_id.x;
+    x += counter;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+
+    var y = invocation_id.y;
+    y += counter;
+    y ^= y << 13;
+    y ^= y >> 17;
+    y ^= y << 5;
+    
+    var z = invocation_id.z;
+    z += counter;
+    z ^= z << 13;
+    z ^= z >> 17;
+    z ^= z << 5;
+
+    ret.x = x;
+    ret.y = y;
+    ret.z = z;
+
+    return ret;
 }

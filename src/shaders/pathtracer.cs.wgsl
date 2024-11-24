@@ -12,9 +12,11 @@
 @workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
 fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
     if (globalIdx.x < u32(cameraUniforms.resolution[0]) && globalIdx.y < u32(cameraUniforms.resolution[1])) {
-        let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
 
-        init_rand(globalIdx, cameraUniforms.seed);
+        let gIdx = shiftIndex(globalIdx, cameraUniforms.counter);
+        init_rand(gIdx, cameraUniforms.seed);
+
+        let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
 
         let segment = &pathSegments.segments[index];
 
@@ -40,9 +42,11 @@ fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
 @workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
 fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
     if (globalIdx.x < u32(cameraUniforms.resolution[0]) && globalIdx.y < u32(cameraUniforms.resolution[1])) {
-        let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
 
-        init_rand(globalIdx, cameraUniforms.seed);
+        let gIdx = shiftIndex(globalIdx, cameraUniforms.counter);
+        init_rand(gIdx, cameraUniforms.seed);
+
+        let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
 
         let pathSegment = &pathSegments.segments[index];
 
@@ -98,7 +102,7 @@ fn scatterRay(index: u32) {
         // let color = vec3f(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
         var color = vec3f(0.2);
         if (pathSegment.remainingBounces == i32(cameraUniforms.depth)) {
-            color = vec3f(0.1);
+            color = vec3f(0.0);
         }
         pathSegment.color *= color;
         pathSegment.remainingBounces = -2;
@@ -122,13 +126,13 @@ fn scatterRay(index: u32) {
 
         attenuation = bsdf;
     } else if (material.params[0] == 1.0f) { // Lambertian
-        scattered = scatterLambertian(index, pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t, intersect.surfaceNormal);
+        scattered = scatterLambertian(index, pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t, dirIn, intersect.surfaceNormal);
         bsdf = evalLambertian(dirIn, scattered.ray.direction, intersect.surfaceNormal, material.color);
         pdf = pdfLambertian(dirIn, scattered.ray.direction, intersect.surfaceNormal);
 
         attenuation = bsdf / pdf;
     } else if (material.params[0] == 2.0f) { // Metal
-        scattered = scatterMetal(index, pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t, intersect.surfaceNormal, material.params[2]);
+        scattered = scatterMetal(index, pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t, intersect.surfaceNormal, dirIn, material.params[2]);
         bsdf = evalMetal(dirIn, scattered.ray.direction, intersect.surfaceNormal, material.color);
 
         attenuation = bsdf;
@@ -147,7 +151,7 @@ fn scatterRay(index: u32) {
 
     if (pathSegment.remainingBounces < 0 && material.params[0] != 0.0f) {
         // did not reach a light till max depth, terminate path as invalid
-        pathSegment.color = vec3f(1.0, 1.0, 0.0);
+        pathSegment.color = vec3f(0.0, 0.0, 0.0);
     }
 }
 
@@ -160,7 +164,8 @@ fn integrate(@builtin(global_invocation_id) globalIdx: vec3u) {
         let pathSegment = &pathSegments.segments[index];
 
         if (pathSegment.remainingBounces >= 0) {
-            init_rand(globalIdx, cameraUniforms.seed);
+            let gIdx = shiftIndex(globalIdx, cameraUniforms.counter);
+            init_rand(gIdx, cameraUniforms.seed);
 
             scatterRay(index);
         }
@@ -177,5 +182,15 @@ fn finalGather(@builtin(global_invocation_id) globalIdx: vec3u) {
         let accumulated = textureLoad(inputTex, globalIdx.xy, 0).xyz;
         let resultColor = vec4(1.0 / f32(cameraUniforms.numSamples) * pathSegment.color + accumulated, 1);
         textureStore(outputTex, globalIdx.xy, resultColor);
+    }
+}
+
+@compute
+@workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
+fn clearTexture(@builtin(global_invocation_id) globalIdx: vec3u) {
+    if (globalIdx.x < u32(cameraUniforms.resolution[0]) && globalIdx.y < u32(cameraUniforms.resolution[1])) {
+        let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
+
+        textureStore(outputTex, globalIdx.xy, vec4(0.0));
     }
 }

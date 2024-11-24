@@ -12,11 +12,13 @@ export class Pathtracer extends renderer.Renderer {
 
     emptyBuffer: GPUBuffer;
 
+    static readonly numGeoms = 4;
     static readonly numFloatsPerGeom = 52;
-    geomsArray = new Float32Array(Pathtracer.numFloatsPerGeom * 3);
+    geomsArray = new Float32Array(Pathtracer.numFloatsPerGeom * Pathtracer.numGeoms);
 
+    static readonly numMats = 4;
     static readonly numFloatsPerMat = 8;
-    materialsArray = new Float32Array(Pathtracer.numFloatsPerMat * 3);
+    materialsArray = new Float32Array(Pathtracer.numFloatsPerMat * Pathtracer.numMats);
 
     pathSegmentsStorageBuffer: GPUBuffer;
     geomsStorageBuffer: GPUBuffer;
@@ -25,6 +27,8 @@ export class Pathtracer extends renderer.Renderer {
 
     pathtracerTempRenderTexture1: GPUTexture;
     pathtracerTempRenderTexture2: GPUTexture;
+    pathtracerTempRenderTexture1View: GPUTextureView;
+    pathtracerTempRenderTexture2View: GPUTextureView;
 
     pathtracerComputeBindGroupLayout: GPUBindGroupLayout;
     pathtracerComputeBindGroupTemp1: GPUBindGroup;
@@ -33,6 +37,7 @@ export class Pathtracer extends renderer.Renderer {
     pathtracerComputePipelineComputeIntersections: GPUComputePipeline;
     pathtracerComputePipelineIntegrate: GPUComputePipeline;
     pathtracerComputePipelineFinalGather: GPUComputePipeline;
+    pathtracerComputePipelineClearTexture: GPUComputePipeline;
 
     renderTextureBindGroupLayout: GPUBindGroupLayout;
     renderTextureBindGroupTemp1: GPUBindGroup;
@@ -98,13 +103,13 @@ export class Pathtracer extends renderer.Renderer {
 
         this.geomsStorageBuffer = renderer.device.createBuffer({
             label: "geoms",
-            size: 16 + Pathtracer.numFloatsPerGeom * 4 * 3, // 16 + Pathtracer.numFloatsPerGeom * 4 * number of geoms
+            size: 16 + Pathtracer.numFloatsPerGeom * 4 * Pathtracer.numGeoms, // 16 + Pathtracer.numFloatsPerGeom * 4 * number of geoms
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
         this.materialsStorageBuffer = renderer.device.createBuffer({
             label: "materials",
-            size: 16 + Pathtracer.numFloatsPerMat * 4 * 3,
+            size: 16 + Pathtracer.numFloatsPerMat * 4 * Pathtracer.numMats,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
@@ -133,6 +138,9 @@ export class Pathtracer extends renderer.Renderer {
             format: "rgba8unorm",
             usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
         });
+
+        this.pathtracerTempRenderTexture1View = this.pathtracerTempRenderTexture1.createView();
+        this.pathtracerTempRenderTexture2View = this.pathtracerTempRenderTexture2.createView();
 
         this.pathtracerComputeBindGroupLayout = renderer.device.createBindGroupLayout({
             label: "pathtracer temp compute bind group layout",
@@ -182,11 +190,11 @@ export class Pathtracer extends renderer.Renderer {
             entries: [
                 {
                     binding: 0,
-                    resource: this.pathtracerTempRenderTexture1.createView(),
+                    resource: this.pathtracerTempRenderTexture1View,
                 },
                 {
                     binding: 1,
-                    resource: this.pathtracerTempRenderTexture2.createView(),
+                    resource: this.pathtracerTempRenderTexture2View,
                 },
                 {
                     binding: 2,
@@ -213,11 +221,11 @@ export class Pathtracer extends renderer.Renderer {
             entries: [         
                 {
                     binding: 0,
-                    resource: this.pathtracerTempRenderTexture2.createView(),
+                    resource: this.pathtracerTempRenderTexture2View,
                 },
                 {
                     binding: 1,
-                    resource: this.pathtracerTempRenderTexture1.createView(),
+                    resource: this.pathtracerTempRenderTexture1View,
                 },
                 {
                     binding: 2,
@@ -297,7 +305,22 @@ export class Pathtracer extends renderer.Renderer {
                 entryPoint: "finalGather",
             },
         });
-
+        
+        this.pathtracerComputePipelineClearTexture = renderer.device.createComputePipeline({
+            label: "pathtracer compute pipeline clear texture",
+            layout: renderer.device.createPipelineLayout({
+                label: "pathtracer compute pipeline layout clear texture",
+                bindGroupLayouts: [this.sceneUniformsBindGroupLayout, this.pathtracerComputeBindGroupLayout],
+            }),
+            compute: {
+                module: renderer.device.createShaderModule({
+                    label: "pathtracer compute shader",
+                    code: shaders.pathtracerComputeSrc,
+                }),
+                entryPoint: "clearTexture",
+            },
+        });
+        
         // Pathtracer render pipeline
         this.renderTextureBindGroupLayout = renderer.device.createBindGroupLayout({
             label: "render texture bind group layout",
@@ -317,7 +340,7 @@ export class Pathtracer extends renderer.Renderer {
             entries: [
                 {
                     binding: 0,
-                    resource: this.pathtracerTempRenderTexture1.createView(),
+                    resource: this.pathtracerTempRenderTexture1View,
                 },
             ],
         });
@@ -328,7 +351,7 @@ export class Pathtracer extends renderer.Renderer {
             entries: [
                 {
                     binding: 0,
-                    resource: this.pathtracerTempRenderTexture2.createView(),
+                    resource: this.pathtracerTempRenderTexture2View,
                 },
             ],
         });
@@ -369,7 +392,7 @@ export class Pathtracer extends renderer.Renderer {
         // inverseTransform : mat4x4f,
         // invTranspose : mat4x4f,
         const identityMat4 = mat4.transpose(mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0));
-        for (let geomIdx = 0; geomIdx < 3; geomIdx++) {
+        for (let geomIdx = 0; geomIdx < Pathtracer.numGeoms; geomIdx++) {
             if (geomIdx == 0) {
                 // A cube
                 this.geomsArray.set(vec4.create(0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
@@ -379,28 +402,38 @@ export class Pathtracer extends renderer.Renderer {
             } else if (geomIdx == 1) {
                 // Left Light
                 this.geomsArray.set(vec4.create(0, 1, 0, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
-                const translateMat4 = mat4.transpose(mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0));
+                const translateMat4 = mat4.transpose(mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.1, 0.0, 0.0, 1.0, 0.3, 0.0, 0.0, 0.0, 1.0));
                 this.geomsArray.set(translateMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
                 this.geomsArray.set(mat4.inverse(translateMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
                 this.geomsArray.set(mat4.transpose(mat4.inverse(translateMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
-            } else {
+            } else if (geomIdx == 2) {
                 // Right Light
                 this.geomsArray.set(vec4.create(1, 2, 0, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
                 const translateMat4 = mat4.transpose(mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 1.0));
                 this.geomsArray.set(translateMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
                 this.geomsArray.set(mat4.inverse(translateMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
                 this.geomsArray.set(mat4.transpose(mat4.inverse(translateMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
+            } else if (geomIdx == 3) {
+                // Mirror greyscale
+                this.geomsArray.set(vec4.create(0, 3, 0, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                const scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const rotateMat4 = mat4.create(0.7071, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 4.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -4.0, 0.0, 0.0, 0.0, 1.0);
+                const transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+                this.geomsArray.set(transformMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
+                this.geomsArray.set(mat4.inverse(transformMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
+                this.geomsArray.set(mat4.transpose(mat4.inverse(transformMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
             }
         }
 
-        renderer.device.queue.writeBuffer(this.geomsStorageBuffer, 0, new Uint32Array([3]));
+        renderer.device.queue.writeBuffer(this.geomsStorageBuffer, 0, new Uint32Array([Pathtracer.numGeoms]));
         renderer.device.queue.writeBuffer(this.geomsStorageBuffer, 16, this.geomsArray);
 
         // matType : u32, // 0 == emissive, 1 == lambertian, 2 == metal
         // emittance : f32,
         // roughness : f32,
         // color : vec3f,
-        for (let matIdx = 0; matIdx < 3; matIdx++) {
+        for (let matIdx = 0; matIdx < Pathtracer.numMats; matIdx++) {
             if (matIdx == 0) {
                 this.materialsArray.set(vec4.create(1.0, 0.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
                 this.materialsArray.set(vec4.create(1.0, 1.0, 1.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
@@ -410,10 +443,13 @@ export class Pathtracer extends renderer.Renderer {
             } else if (matIdx == 2) {
                 this.materialsArray.set(vec4.create(0.0, 1.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
                 this.materialsArray.set(vec4.create(0.0, 1.0, 0.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
+            } else if (matIdx == 3) {
+                this.materialsArray.set(vec4.create(2.0, 0.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
+                this.materialsArray.set(vec4.create(1.0, 1.0, 1.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
             }
         }
 
-        renderer.device.queue.writeBuffer(this.materialsStorageBuffer, 0, new Uint32Array([3]));
+        renderer.device.queue.writeBuffer(this.materialsStorageBuffer, 0, new Uint32Array([Pathtracer.numMats]));
         renderer.device.queue.writeBuffer(this.materialsStorageBuffer, 16, this.materialsArray);
     }
 
@@ -422,11 +458,27 @@ export class Pathtracer extends renderer.Renderer {
         const encoder = renderer.device.createCommandEncoder();
         const canvasTextureView = renderer.context.getCurrentTexture().createView();
 
-        for (let s = 0; s < this.camera.samples; s++) {
+        const computePass = encoder.beginComputePass();
 
-            const computePass = encoder.beginComputePass();
+        // Reset contents of render textures
+        computePass.setPipeline(this.pathtracerComputePipelineClearTexture);
+        computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+        computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
+        computePass.dispatchWorkgroups(
+            Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
+            Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
+        );
+
+        computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp2);
+        computePass.dispatchWorkgroups(
+            Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
+            Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
+        );
+
+        for (let s = 1; s <= this.camera.samples; s++) {
 
             // Generate camera rays
+            this.camera.updateCameraUniformsCounter();
             computePass.setPipeline(this.pathtracerComputePipelineGenerateRay);
             computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
             computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
@@ -437,6 +489,7 @@ export class Pathtracer extends renderer.Renderer {
             
             for (let d = this.camera.rayDepth; d >= 0; d--) {
                 // Compute ray-scene intersections
+                this.camera.updateCameraUniformsCounter();
                 computePass.setPipeline(this.pathtracerComputePipelineComputeIntersections);
                 computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
                 computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
@@ -448,6 +501,7 @@ export class Pathtracer extends renderer.Renderer {
                 // Sort rays by materials
 
                 // Evaluate the integral and shade materials
+                this.camera.updateCameraUniformsCounter();
                 computePass.setPipeline(this.pathtracerComputePipelineIntegrate);
                 computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
                 computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
@@ -458,7 +512,7 @@ export class Pathtracer extends renderer.Renderer {
 
                 // Stream compaction
             }
-            
+
             computePass.setPipeline(this.pathtracerComputePipelineFinalGather);
             computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
             if (s % 2 == 0) {
@@ -470,9 +524,8 @@ export class Pathtracer extends renderer.Renderer {
                 Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
                 Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
             );
-
-            computePass.end();
         }
+        computePass.end();
 
         const renderPass = encoder.beginRenderPass({
             label: "pathtracer render pass",
@@ -495,9 +548,9 @@ export class Pathtracer extends renderer.Renderer {
         renderPass.setPipeline(this.pipeline);
         renderPass.setVertexBuffer(0, this.emptyBuffer);
         if (this.camera.samples % 2 == 0) {
-            renderPass.setBindGroup(0, this.renderTextureBindGroupTemp2);
-        } else {
             renderPass.setBindGroup(0, this.renderTextureBindGroupTemp1);
+        } else {
+            renderPass.setBindGroup(0, this.renderTextureBindGroupTemp2);
         }
         renderPass.draw(6);
         renderPass.end();
