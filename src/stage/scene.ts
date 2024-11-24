@@ -325,10 +325,7 @@ export class Scene {
 
         // Create geometry buffers for meshes
         for (const mesh of meshes) {
-            const meshVertexStartIdx = this.totalVertexCount;
             const meshTriangleStartIdx = this.totalTriangleCount;
-            const meshVertexDataArray: VertexData[] = [];
-            const meshTriangleDataArray: TriangleData[] = [];
             let meshVertexCount = 0;
             let meshTriangleCount = 0;
 
@@ -349,30 +346,25 @@ export class Scene {
                 }
 
                 const localVertexCount = positions.length / 3;
-                const localVertices: VertexData[] = [];
+                const vertexOffset = this.vertexDataArray.length;
                 for (let i = 0; i < localVertexCount; i++) {
                     const position = vec3.create(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
                     const normal = vec3.create(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
                     const uv = vec2.create(uvs[i * 2], uvs[i * 2 + 1]);
-                    localVertices.push({ position, normal, uv });
+                    this.vertexDataArray.push({ position, normal, uv });
                 }
 
-                const vertexOffset = meshVertexDataArray.length;
-                meshVertexDataArray.push(...localVertices);
-
-                // Adjust indices
-                const adjustedIndices = new Uint32Array(indices.length);
                 for (let i = 0; i < indices.length; i++) {
-                    adjustedIndices[i] = indices[i] + vertexOffset;
+                    indices[i] += vertexOffset;
                 }
 
-                const primitiveTriangleCount = adjustedIndices.length / 3;
+                const primitiveTriangleCount = indices.length / 3;
                 for (let i = 0; i < primitiveTriangleCount; i++) {
                     const idx = i * 3;
-                    meshTriangleDataArray.push({
-                        v0: adjustedIndices[idx + 0],
-                        v1: adjustedIndices[idx + 1],
-                        v2: adjustedIndices[idx + 2],
+                    this.triangleDataArray.push({
+                        v0: indices[idx + 0],
+                        v1: indices[idx + 1],
+                        v2: indices[idx + 2],
                         materialId: materialIndex,
                     });
                 }
@@ -380,15 +372,6 @@ export class Scene {
                 meshVertexCount += localVertexCount;
                 meshTriangleCount += primitiveTriangleCount;
             }
-
-            for (const triangle of meshTriangleDataArray) {
-                triangle.v0 += meshVertexStartIdx;
-                triangle.v1 += meshVertexStartIdx;
-                triangle.v2 += meshVertexStartIdx;
-            }
-
-            this.vertexDataArray.push(...meshVertexDataArray);
-            this.triangleDataArray.push(...meshTriangleDataArray);
 
             const geomData: GeomData = {
                 transform: mat4.identity(),
@@ -680,7 +663,7 @@ export class Scene {
         descriptorsBuffer.unmap();
 
         const dummyBuffer = device.createBuffer({
-            size: 16,
+            size: 48,
             usage: GPUBufferUsage.STORAGE,
             mappedAtCreation: true,
         });
@@ -748,7 +731,7 @@ export class Scene {
             { binding: 3, resource: { buffer: bvhBuffer } },
         ];
         const textureBindGroupEntries: GPUBindGroupEntry[] = [
-            { binding: 0, resource: { buffer: materialBuffer } },
+            { binding: 0, resource: { buffer: materialHostBuffer.byteLength > 0 ? materialBuffer : dummyBuffer } },
             { binding: 1, resource: { buffer: descriptorsData.byteLength > 0 ? descriptorsBuffer : dummyBuffer } },
             { binding: 2, resource: { buffer: textureData.byteLength > 0 ? textureDataBuffer : dummyBuffer } },
         ];
