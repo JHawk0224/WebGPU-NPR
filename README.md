@@ -1,6 +1,7 @@
 ## WebGPU Pathtracer
 
 
+
 ### Credits
 
 - [Vite](https://vitejs.dev/)

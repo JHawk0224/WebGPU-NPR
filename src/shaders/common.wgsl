@@ -25,7 +25,7 @@ struct ClusterSet {
 struct Ray
 {
     origin : vec3f,
-    direction : vec3f,
+    direction : vec3f
 }
 
 struct PathSegment
@@ -33,7 +33,7 @@ struct PathSegment
     ray : Ray,
     color : vec3f,
     pixelIndex : i32,
-    remainingBounces : i32,
+    remainingBounces : i32
 }
 
 struct PathSegments
@@ -44,40 +44,72 @@ struct PathSegments
 // Order is weird to make it more compact
 struct Geom
 {
-    // geomType : i32, // 0 == CUBE, 1 == SPHERE
-    // materialid : i32,
-    params : vec4f,
     transform : mat4x4f,
     inverseTransform : mat4x4f,
     invTranspose : mat4x4f,
+    geomType : u32, // 0 == CUBE, 1 == SPHERE, 2 == MESH
+    materialId : i32,
+    triangleCount : u32,
+    triangleStartIdx : i32,
+    bvhRootNodeIdx : i32
 };
 
-struct Geoms
-{
+struct Geoms {
     geomsSize : u32,
-    geoms : array<Geom, 2>
+    geoms : array<Geom>
 }
 
-struct Material
-{
-    // matType : u32, // 0 == emissive, 1 == lambertian
-    // emittance : f32,
-    // roughness : f32,
-    params : vec3f,
-    color : vec3f,
+struct Vertex {
+    position: vec3f,
+    normal: vec3f,
+    uv: vec2f,
 };
 
-struct Materials
-{
-    materialsSize : u32,
-    materials : array<Material, 2>
-}
+struct Vertices {
+    vertices: array<Vertex>
+};
+
+struct Triangle {
+    v0: u32,
+    v1: u32,
+    v2: u32,
+    materialId: i32
+};
+
+struct Triangles {
+    tris: array<Triangle>
+};
+
+struct BVHNode {
+    boundsMin: vec4f,
+    boundsMax: vec4f,
+    leftChild: i32,
+    rightChild: i32,
+    triangleStart: i32,
+    triangleCount: u32
+};
+
+struct BVHNodes {
+    nodesSize: u32,
+    nodes: array<BVHNode>
+};
+
+struct Material {
+    baseColorFactor: vec4f,
+    emissiveFactor: vec3f,
+    metallicFactor: f32,
+    roughnessFactor: f32,
+    baseColorTextureIndex: i32,  // index into textureDescriptors
+    emissiveTextureIndex: i32,   // index into textureDescriptors
+    matType: i32,                // material type (0: Emissive, 1: Lambertian, 2: Metal)
+};
 
 struct Intersection
 {
     surfaceNormal : vec3<f32>,
     t : f32,
-    materialId : f32, // materialId == -1 means no intersection
+    uv : vec2<f32>,
+    materialId : i32 // materialId == -1 means no intersection
 };
 
 struct Intersections
@@ -91,6 +123,8 @@ struct HitInfo
     dist : f32,
     normal : vec3<f32>,
     outside : u32,
+    uv : vec2<f32>,
+    materialId : i32
 }
 
 struct CameraUniforms {
@@ -107,7 +141,7 @@ struct CameraUniforms {
     pixelLength : vec2<f32>,
     cameraPos : vec3<f32>,
     numSamples : f32,
-    seed : vec3u,
+    seed : vec3u
 }
 
 // this special attenuation function ensures lights don't affect geometry outside the maximum light radius
@@ -143,4 +177,13 @@ fn calculateLightContribToonShading(light: Light, posWorld: vec3f, viewDir: vec3
 fn applyTransform(p: vec4<f32>, transform: mat4x4<f32>) -> vec3<f32> {
     let transformed = transform * p;
     return transformed.xyz / transformed.w;
+}
+
+// cannot use WebGPU built in Textures since we need all loaded in memory
+// at once for compute shader
+// https://nelari.us/post/weekend_raytracing_with_wgpu_2/#adding-texture-support
+struct TextureDescriptor {
+    width: u32,
+    height: u32,
+    offset: u32,
 }

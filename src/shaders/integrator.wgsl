@@ -33,7 +33,7 @@ fn evalLambertian(dirIn: vec3f, dirOut: vec3f, normal: vec3f, mColor: vec3f) -> 
 
 fn pdfLambertian(dirIn: vec3f, dirOut: vec3f, normal: vec3f) -> f32
 {
-    return max(0.0, dot(dirOut, normal) / PI);
+    return max(0.0, dot(normalize(dirOut), normalize(normal)) / PI);
 }
 
 // Metal

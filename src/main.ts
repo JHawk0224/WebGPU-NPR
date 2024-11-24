@@ -10,12 +10,26 @@ import { setupLoaders, Scene } from "./stage/scene";
 import { Lights } from "./stage/lights";
 import { Camera } from "./stage/camera";
 import { Stage } from "./stage/stage";
+import { vec3 } from "wgpu-matrix";
 
 await initWebGPU();
 setupLoaders();
 
 let scene = new Scene();
-await scene.loadGltf("./scenes/sponza/Sponza.gltf");
+await scene.loadGltf("./scenes/box/BoxTextured.gltf");
+// await scene.loadGltf(
+//     "./scenes/person.glb",
+//     vec3.create(1, 1, 1),
+//     vec3.create(-1, -0.7, 7),
+//     vec3.create(0, 3.1415 / 2, 0)
+// );
+await scene.loadGltf(
+    "./scenes/suzanne.gltf",
+    vec3.create(1, 1, 1),
+    vec3.create(0, 0, 0),
+    vec3.create(0, -3.1415 / 4, 0)
+);
+// await scene.loadGltf("./scenes/sponza/Sponza.gltf"); // too big for storage
 
 const camera = new Camera();
 const lights = new Lights(camera);
