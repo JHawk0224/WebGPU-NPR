@@ -14,7 +14,7 @@ fn getPointOnRay(r: Ray, t: f32) -> vec3f {
 fn boxIntersectionTest(box: ptr<storage, Geom, read>, r: Ray) -> HitInfo
 {
     var ret : HitInfo;
-    ret.hitTriIndex = -1;
+    ret.materialId = box.materialId;
 
     var q : Ray;
     q.origin = (box.inverseTransform * vec4f(r.origin, 1.0)).xyz;
@@ -59,7 +59,19 @@ fn boxIntersectionTest(box: ptr<storage, Geom, read>, r: Ray) -> HitInfo
             tmin_n = tmax_n;
             ret.outside = 0;
         }
-        ret.intersectionPoint = (box.transform * vec4f(getPointOnRay(q, tmin), 1.0)).xyz;
+
+        let localHitPoint = getPointOnRay(q, tmin);
+
+        var absNormal = abs(tmin_n);
+        if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) { // Hit on X face
+            ret.uv = (localHitPoint.yz + vec2<f32>(0.5)) * vec2<f32>(1.0, 1.0);
+        } else if (absNormal.y > absNormal.x && absNormal.y > absNormal.z) { // Hit on Y face
+            ret.uv = (localHitPoint.xz + vec2<f32>(0.5)) * vec2<f32>(1.0, 1.0);
+        } else { // Hit on Z face
+            ret.uv = (localHitPoint.xy + vec2<f32>(0.5)) * vec2<f32>(1.0, 1.0);
+        }
+
+        ret.intersectionPoint = (box.transform * vec4f(localHitPoint, 1.0)).xyz;
         ret.normal = (normalize(box.invTranspose * vec4f(tmin_n, 0.0))).xyz;
         ret.dist = length(r.origin - ret.intersectionPoint);
         return ret;
@@ -71,7 +83,7 @@ fn boxIntersectionTest(box: ptr<storage, Geom, read>, r: Ray) -> HitInfo
 
 fn sphereIntersectionTest(sphere: ptr<storage, Geom, read>, r: Ray) -> HitInfo {
     var ret : HitInfo;
-    ret.hitTriIndex = -1;
+    ret.materialId = sphere.materialId;
 
     let radius = 0.5;
 
@@ -121,17 +133,26 @@ fn sphereIntersectionTest(sphere: ptr<storage, Geom, read>, r: Ray) -> HitInfo {
         ret.normal = -ret.normal;
     }
 
+    let p = normalize(objspaceIntersection);
+    let theta = atan2(p.z, p.x);
+    let phi = acos(p.y);
+    ret.uv = vec2<f32>((theta + PI) / (2.0 * PI), phi / PI);
+
     ret.dist = length(r.origin - ret.intersectionPoint);
     return ret;
 }
 
-fn triangleIntersectionTest(tri: Triangle, r: Ray) -> HitInfo {
+fn triangleIntersectionTest(tri: Triangle, vertices: ptr<storage, Vertices, read>, r: Ray) -> HitInfo {
     var ret: HitInfo;
-    ret.hitTriIndex = -1;
+    ret.materialId = tri.materialId;
     let EPSILON = 1e-4;
 
-    let edge1 = tri.v1.xyz - tri.v0.xyz;
-    let edge2 = tri.v2.xyz - tri.v0.xyz;
+    let v0 = vertices.vertices[tri.v0];
+    let v1 = vertices.vertices[tri.v1];
+    let v2 = vertices.vertices[tri.v2];
+
+    let edge1 = v1.position - v0.position;
+    let edge2 = v2.position - v0.position;
     let h = cross(r.direction, edge2);
     let a = dot(edge1, h);
 
@@ -141,7 +162,7 @@ fn triangleIntersectionTest(tri: Triangle, r: Ray) -> HitInfo {
     }
 
     let f = 1.0 / a;
-    let s = r.origin - tri.v0.xyz;
+    let s = r.origin - v0.position;
     let u = f * dot(s, h);
     if (u < 0.0 || u > 1.0) {
         ret.dist = -1.0;
@@ -158,12 +179,16 @@ fn triangleIntersectionTest(tri: Triangle, r: Ray) -> HitInfo {
     let t = f * dot(edge2, q);
     if (t > EPSILON) {
         ret.intersectionPoint = getPointOnRay(r, t);
-        ret.normal = normalize(cross(edge1, edge2));
         ret.outside = select(0u, 1u, dot(r.direction, ret.normal) < 0.0);
         if (ret.outside == 0) {
             ret.normal = -ret.normal;
         }
         ret.dist = t;
+
+        let w = 1.0 - u - v;
+        ret.normal = w * v0.normal + u * v1.normal + v * v2.normal; // normalize(cross(edge1, edge2))
+        ret.uv = w * v0.uv + u * v1.uv + v * v2.uv;
+
         return ret;
     }
 
@@ -181,10 +206,10 @@ fn rayIntersectsAABB(ray: Ray, boundsMin: vec3f, boundsMax: vec3f) -> bool {
     return tNear <= tFar && tFar >= 0.0;
 }
 
-fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Triangles, read>, bvhNodes: ptr<storage, BVHNodes, read>, r: Ray) -> HitInfo {
+fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, vertices: ptr<storage, Vertices, read>, tris: ptr<storage, Triangles, read>, bvhNodes: ptr<storage, BVHNodes, read>, r: Ray) -> HitInfo {
     var ret: HitInfo;
     ret.dist = -1.0;
-    ret.hitTriIndex = -1;
+    ret.materialId = -1;
 
     let ro = (mesh.inverseTransform * vec4f(r.origin, 1.0)).xyz;
     let rd = normalize((mesh.inverseTransform * vec4f(r.direction, 0.0)).xyz);
@@ -200,14 +225,15 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Trian
         if (mesh.triangleStartIdx >= 0) {
             for (var i = 0u; i < mesh.triangleCount; i = i + 1u) {
                 let tri = tris.tris[u32(mesh.triangleStartIdx) + i];
-                let hitInfo = triangleIntersectionTest(tri, objRay);
+                let hitInfo = triangleIntersectionTest(tri, vertices, objRay);
                 if (hitInfo.dist > 0.0 && hitInfo.dist < t_min) {
                     t_min = hitInfo.dist;
                     ret.intersectionPoint = hitInfo.intersectionPoint;
                     ret.normal = hitInfo.normal;
                     ret.outside = hitInfo.outside;
                     ret.dist = hitInfo.dist;
-                    ret.hitTriIndex = mesh.triangleStartIdx + i32(i);
+                    ret.materialId = hitInfo.materialId;
+                    ret.uv = hitInfo.uv;
                 }
             }
         }
@@ -233,14 +259,15 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Trian
 
                     for (var i = triangleStart; i < triangleStart + node.triangleCount; i = i + 1u) {
                         let tri = tris.tris[i];
-                        let hitInfo = triangleIntersectionTest(tri, objRay);
+                        let hitInfo = triangleIntersectionTest(tri, vertices, objRay);
                         if (hitInfo.dist > 0.0 && hitInfo.dist < t_min) {
                             t_min = hitInfo.dist;
                             ret.intersectionPoint = hitInfo.intersectionPoint;
                             ret.normal = hitInfo.normal;
                             ret.outside = hitInfo.outside;
                             ret.dist = hitInfo.dist;
-                            ret.hitTriIndex = i32(i);
+                            ret.materialId = hitInfo.materialId;
+                            ret.uv = hitInfo.uv;
                         }
                     }
                 } else {
@@ -267,7 +294,7 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, tris: ptr<storage, Trian
         ret.dist = length(r.origin - ret.intersectionPoint);
     } else {
         ret.dist = -1.0;
-        ret.hitTriIndex = -1;
+        ret.materialId = -1;
     }
     return ret;
 }

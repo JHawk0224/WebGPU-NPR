@@ -6,10 +6,10 @@ In particular, it is known to not work if there is a mesh with no material.
 */
 
 import { registerLoaders, load } from "@loaders.gl/core";
-import { GLTFLoader, GLTFWithBuffers, GLTFMesh, GLTFMeshPrimitive, GLTFMaterial, GLTFSampler } from "@loaders.gl/gltf";
+import { GLTFLoader, GLTFWithBuffers, GLTFSampler } from "@loaders.gl/gltf";
 import { ImageLoader } from "@loaders.gl/images";
-import { vec3, Vec3, Mat4, mat4 } from "wgpu-matrix";
-import { device, materialBindGroupLayout, modelBindGroupLayout } from "../renderer";
+import { Vec2, vec3, Vec3, Mat4, mat4 } from "wgpu-matrix";
+import { device } from "../renderer";
 
 const enableBVH = false;
 
@@ -24,20 +24,34 @@ export interface GeomData {
     bvhRootNodeIdx: number;
 }
 
+export interface VertexData {
+    position: Vec3;
+    normal: Vec3;
+    uv: Vec2;
+}
+
 export interface TriangleData {
-    v0: Vec3;
-    v1: Vec3;
-    v2: Vec3;
+    v0: number;
+    v1: number;
+    v2: number;
     materialId: number;
 }
 
-export interface MaterialData {
-    color: Vec3;
-    matType: number;
-    emittance: number;
-    roughness: number;
+export interface TextureDescriptor {
+    width: number;
+    height: number;
+    offset: number;
 }
 
+export interface MaterialData {
+    baseColorFactor: number[];
+    baseColorTextureIndex: number;
+    metallicFactor: number;
+    roughnessFactor: number;
+    emissiveFactor: number[];
+    emissiveTextureIndex: number;
+    matType: number;
+}
 export interface BVHNodeData {
     boundsMin: Vec3;
     boundsMax: Vec3;
@@ -47,16 +61,11 @@ export interface BVHNodeData {
     triangleCount: number;
 }
 
-export function setupLoaders() {
-    registerLoaders([GLTFLoader, ImageLoader]);
-}
-
-function getFloatArray(gltfWithBuffers: GLTFWithBuffers, attribute: number): Float32Array | null {
+function getFloatArray(gltfWithBuffers: GLTFWithBuffers, accessorIndex: number): Float32Array | null {
     const gltf = gltfWithBuffers.json;
-
-    const accessor = gltf.accessors?.[attribute];
+    const accessor = gltf.accessors?.[accessorIndex];
     if (!accessor) {
-        console.warn(`Accessor at index ${attribute} is undefined`);
+        console.warn(`Accessor at index ${accessorIndex} is undefined`);
         return null;
     }
 
@@ -67,7 +76,7 @@ function getFloatArray(gltfWithBuffers: GLTFWithBuffers, attribute: number): Flo
 
     const bufferViewIndex = accessor.bufferView;
     if (bufferViewIndex === undefined) {
-        console.warn(`Accessor at index ${attribute} has undefined bufferView`);
+        console.warn(`Accessor at index ${accessorIndex} has undefined bufferView`);
         return null;
     }
 
@@ -119,365 +128,133 @@ function getFloatArray(gltfWithBuffers: GLTFWithBuffers, attribute: number): Flo
     return new Float32Array(buffer.arrayBuffer, byteOffset, accessor.count * numComponents);
 }
 
-class Texture {
-    image: GPUTexture;
-    sampler: GPUSampler;
-
-    constructor(image: GPUTexture, sampler: GPUSampler) {
-        this.image = image;
-        this.sampler = sampler;
-    }
-}
-
-export class Material {
-    private static nextId = 0;
-    readonly id: number;
-
-    materialBindGroup: GPUBindGroup;
-
-    color: Vec3;
-    matType: number;
-    emittance: number;
-    roughness: number;
-
-    constructor(gltfMaterial: GLTFMaterial, textures: Texture[]) {
-        this.id = Material.nextId++;
-
-        const pbr = gltfMaterial.pbrMetallicRoughness ?? {};
-        const baseColorTextureInfo = pbr.baseColorTexture;
-        const baseColorFactor = pbr.baseColorFactor ?? [1.0, 1.0, 1.0, 1.0];
-
-        let texture: GPUTexture;
-        let sampler: GPUSampler;
-
-        if (baseColorTextureInfo?.index !== undefined) {
-            const textureIndex = baseColorTextureInfo.index;
-            const diffuseTexture = textures[textureIndex];
-            if (diffuseTexture) {
-                texture = diffuseTexture.image;
-                sampler = diffuseTexture.sampler;
-            } else {
-                console.warn(`Texture not found at index ${textureIndex}. Using default texture.`);
-                ({ texture, sampler } = this.createDefaultTextureAndSampler(baseColorFactor));
-            }
-        } else {
-            ({ texture, sampler } = this.createDefaultTextureAndSampler(baseColorFactor));
-        }
-
-        this.materialBindGroup = device.createBindGroup({
-            label: "material bind group",
-            layout: materialBindGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: texture.createView(),
-                },
-                {
-                    binding: 1,
-                    resource: sampler,
-                },
-            ],
-        });
-
-        this.color = vec3.fromValues(...baseColorFactor.slice(0, 3));
-        this.matType = 0;
-        this.emittance = 0.0;
-        this.roughness = pbr.roughnessFactor ?? 1.0;
+function getIndexArray(gltfWithBuffers: GLTFWithBuffers, accessorIndex: number): Uint16Array | Uint32Array | null {
+    const gltf = gltfWithBuffers.json;
+    const accessor = gltf.accessors?.[accessorIndex];
+    if (!accessor) {
+        console.warn(`Accessor at index ${accessorIndex} is undefined`);
+        return null;
     }
 
-    private createDefaultTextureAndSampler(baseColorFactor: number[]): {
-        texture: GPUTexture;
-        sampler: GPUSampler;
-    } {
-        const texture = device.createTexture({
-            size: [1, 1],
-            format: "rgba8unorm",
-            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-        });
-
-        const colorData = new Uint8Array(baseColorFactor.map((c) => Math.round(c * 255)));
-        device.queue.writeTexture({ texture }, colorData, { bytesPerRow: 4 }, { width: 1, height: 1 });
-
-        const sampler = device.createSampler();
-
-        return { texture, sampler };
-    }
-}
-
-export class Primitive {
-    vertexBuffer: GPUBuffer;
-    indexBuffer: GPUBuffer;
-    numIndices = -1;
-
-    material: Material;
-
-    vertsArray: Float32Array;
-    indicesArray: Uint32Array;
-
-    constructor(gltfPrim: GLTFMeshPrimitive, gltfWithBuffers: GLTFWithBuffers, material: Material) {
-        this.material = material;
-
-        const gltf = gltfWithBuffers.json;
-
-        const indicesAccessorIndex = gltfPrim.indices;
-        if (indicesAccessorIndex === undefined) {
-            throw new Error("Indices accessor index is undefined in primitive.");
-        }
-
-        const indicesAccessor = gltf.accessors?.[indicesAccessorIndex];
-        if (!indicesAccessor) {
-            throw new Error(`Indices accessor not found at index ${indicesAccessorIndex}.`);
-        }
-
-        const indicesBufferViewIndex = indicesAccessor.bufferView;
-        if (indicesBufferViewIndex === undefined) {
-            throw new Error(`Indices accessor bufferView is undefined at index ${indicesAccessorIndex}.`);
-        }
-
-        const indicesBufferView = gltf.bufferViews?.[indicesBufferViewIndex];
-        if (!indicesBufferView) {
-            throw new Error(`Indices bufferView not found at index ${indicesBufferViewIndex}.`);
-        }
-
-        const indicesBufferIndex = indicesBufferView.buffer;
-        const indicesBuffer = gltfWithBuffers.buffers[indicesBufferIndex];
-        if (!indicesBuffer) {
-            throw new Error(`Indices buffer not found at index ${indicesBufferIndex}.`);
-        }
-
-        const indicesByteOffset =
-            (indicesAccessor.byteOffset ?? 0) + (indicesBufferView.byteOffset ?? 0) + indicesBuffer.byteOffset;
-
-        const indicesCount = indicesAccessor.count;
-        const indicesComponentType = indicesAccessor.componentType;
-
-        let indicesArray: Uint32Array;
-        switch (indicesComponentType) {
-            case 0x1403: // UNSIGNED_SHORT
-                indicesArray = Uint32Array.from(
-                    new Uint16Array(indicesBuffer.arrayBuffer, indicesByteOffset, indicesCount)
-                );
-                break;
-            case 0x1405: // UNSIGNED_INT
-                indicesArray = new Uint32Array(indicesBuffer.arrayBuffer, indicesByteOffset, indicesCount);
-                break;
-            default:
-                throw new Error(`Unsupported indices component type: 0x${indicesComponentType.toString(16)}`);
-        }
-
-        const positionsArray = getFloatArray(gltfWithBuffers, gltfPrim.attributes.POSITION);
-        if (!positionsArray) {
-            throw new Error("Positions array is undefined in primitive.");
-        }
-
-        const normalsArray =
-            gltfPrim.attributes.NORMAL !== undefined
-                ? getFloatArray(gltfWithBuffers, gltfPrim.attributes.NORMAL)
-                : new Float32Array(positionsArray.length);
-        if (!normalsArray) {
-            throw new Error("Normals array is undefined in primitive.");
-        }
-
-        const uvsArray =
-            gltfPrim.attributes.TEXCOORD_0 !== undefined
-                ? getFloatArray(gltfWithBuffers, gltfPrim.attributes.TEXCOORD_0)
-                : new Float32Array((positionsArray.length / 3) * 2);
-        if (!uvsArray) {
-            throw new Error("UVs array is undefined in primitive.");
-        }
-
-        const numFloatsPerVert = 8;
-        const numVerts = positionsArray.length / 3;
-        const vertsArray = new Float32Array(numVerts * numFloatsPerVert);
-
-        for (let vertIdx = 0; vertIdx < numVerts; ++vertIdx) {
-            const vertStartIdx = vertIdx * numFloatsPerVert;
-            vertsArray[vertStartIdx] = positionsArray[vertIdx * 3];
-            vertsArray[vertStartIdx + 1] = positionsArray[vertIdx * 3 + 1];
-            vertsArray[vertStartIdx + 2] = positionsArray[vertIdx * 3 + 2];
-            vertsArray[vertStartIdx + 3] = normalsArray[vertIdx * 3] || 0;
-            vertsArray[vertStartIdx + 4] = normalsArray[vertIdx * 3 + 1] || 0;
-            vertsArray[vertStartIdx + 5] = normalsArray[vertIdx * 3 + 2] || 0;
-            vertsArray[vertStartIdx + 6] = uvsArray[vertIdx * 2] || 0;
-            vertsArray[vertStartIdx + 7] = uvsArray[vertIdx * 2 + 1] || 0;
-        }
-
-        this.indexBuffer = device.createBuffer({
-            label: "index buffer",
-            size: indicesArray.byteLength,
-            usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-        });
-        device.queue.writeBuffer(this.indexBuffer, 0, indicesArray);
-
-        this.vertexBuffer = device.createBuffer({
-            label: "vertex buffer",
-            size: vertsArray.byteLength,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        });
-        device.queue.writeBuffer(this.vertexBuffer, 0, vertsArray);
-
-        this.numIndices = indicesArray.length;
-        this.vertsArray = vertsArray;
-        this.indicesArray = indicesArray;
-    }
-}
-
-export class Mesh {
-    primitives: Primitive[] = [];
-
-    constructor(gltfMesh: GLTFMesh, gltfWithBuffers: GLTFWithBuffers, sceneMaterials: Material[]) {
-        gltfMesh.primitives.forEach((gltfPrim: GLTFMeshPrimitive) => {
-            const materialIndex = gltfPrim.material;
-            const material = materialIndex !== undefined ? sceneMaterials[materialIndex] : new Material({}, []);
-            this.primitives.push(new Primitive(gltfPrim, gltfWithBuffers, material));
-        });
-
-        this.primitives.sort((primA: Primitive, primB: Primitive) => {
-            return primA.material.id - primB.material.id;
-        });
-    }
-}
-
-export class Node {
-    name: String = "node";
-
-    parent: Node | undefined;
-    children: Set<Node> = new Set<Node>();
-
-    transform: Mat4 = mat4.identity();
-    worldTransform: Mat4 = mat4.identity();
-    modelMatUniformBuffer!: GPUBuffer;
-    modelBindGroup!: GPUBindGroup;
-    mesh: Mesh | undefined;
-
-    setName(newName: string) {
-        this.name = newName;
+    const bufferViewIndex = accessor.bufferView;
+    if (bufferViewIndex === undefined) {
+        console.warn(`Accessor at index ${accessorIndex} has undefined bufferView`);
+        return null;
     }
 
-    setParent(newParent: Node) {
-        if (this.parent != undefined) {
-            this.parent.children.delete(this);
-        }
-
-        this.parent = newParent;
-        newParent.children.add(this);
+    const bufferView = gltf.bufferViews?.[bufferViewIndex];
+    if (!bufferView) {
+        console.warn(`BufferView at index ${bufferViewIndex} is undefined`);
+        return null;
     }
 
-    propagateTransformations(parentTransform: Mat4 = mat4.identity()) {
-        this.worldTransform = mat4.mul(parentTransform, this.transform);
-
-        if (this.mesh != undefined) {
-            this.modelMatUniformBuffer = device.createBuffer({
-                label: "model mat uniform",
-                size: 16 * 4 + 8,
-                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-            });
-
-            device.queue.writeBuffer(this.modelMatUniformBuffer, 0, this.worldTransform);
-
-            this.modelBindGroup = device.createBindGroup({
-                label: "model bind group",
-                layout: modelBindGroupLayout,
-                entries: [
-                    {
-                        binding: 0,
-                        resource: { buffer: this.modelMatUniformBuffer },
-                    },
-                ],
-            });
-        }
-
-        for (let child of this.children) {
-            child.propagateTransformations(this.worldTransform);
-        }
+    const bufferIndex = bufferView.buffer;
+    const buffer = gltfWithBuffers.buffers[bufferIndex];
+    if (!buffer) {
+        console.warn(`Buffer at index ${bufferIndex} is undefined`);
+        return null;
     }
-}
 
-function createTexture(imageBitmap: ImageBitmap): GPUTexture {
-    let texture = device.createTexture({
-        size: [imageBitmap.width, imageBitmap.height],
-        format: "rgba8unorm",
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-    });
+    const accessorByteOffset = accessor.byteOffset ?? 0;
+    const bufferViewByteOffset = bufferView.byteOffset ?? 0;
+    const byteOffset = accessorByteOffset + bufferViewByteOffset;
 
-    device.queue.copyExternalImageToTexture(
-        { source: imageBitmap },
-        { texture: texture },
-        { width: imageBitmap.width, height: imageBitmap.height }
-    );
-
-    return texture;
-}
-
-function convertWrapModeEnum(wrapMode: number): GPUAddressMode {
-    switch (wrapMode) {
-        case 0x2901: // REPEAT
-            return "repeat";
-        case 0x812f: // CLAMP_TO_EDGE
-            return "clamp-to-edge";
-        case 0x8370: // MIRRORED_REPEAT
-            return "mirror-repeat";
-        default:
-            return "repeat";
-        // throw new Error(`unsupported wrap mode: 0x${wrapMode.toString(16)}`);
-    }
-}
-
-function createSampler(gltfSampler: GLTFSampler): GPUSampler {
-    let samplerDescriptor: GPUSamplerDescriptor = {};
-
-    switch (gltfSampler.magFilter) {
-        case 0x2600: // NEAREST
-            samplerDescriptor.magFilter = "nearest";
+    const componentType = accessor.componentType;
+    let arrayConstructor: any;
+    switch (componentType) {
+        case 5121: // UNSIGNED_BYTE
+            arrayConstructor = Uint8Array;
             break;
-        case 0x2601: // LINEAR
-            samplerDescriptor.magFilter = "linear";
+        case 5123: // UNSIGNED_SHORT
+            arrayConstructor = Uint16Array;
+            break;
+        case 5125: // UNSIGNED_INT
+            arrayConstructor = Uint32Array;
             break;
         default:
-            samplerDescriptor.magFilter = "linear";
-        // throw new Error(`unsupported magFilter: 0x${gltfSampler.magFilter!.toString(16)}`);
+            console.warn(`Unsupported index componentType: ${componentType}`);
+            return null;
     }
 
-    switch (gltfSampler.minFilter) {
-        case 0x2600: // NEAREST
-            samplerDescriptor.minFilter = "nearest";
-            break;
-        case 0x2601: // LINEAR
-            samplerDescriptor.minFilter = "linear";
-            break;
-        case 0x2700: // NEAREST_MIPMAP_NEAREST
-            samplerDescriptor.minFilter = "nearest";
-            samplerDescriptor.mipmapFilter = "nearest";
-            break;
-        case 0x2701: // LINEAR_MIPMAP_NEAREST
-            samplerDescriptor.minFilter = "linear";
-            samplerDescriptor.mipmapFilter = "nearest";
-            break;
-        case 0x2702: // NEAREST_MIPMAP_LINEAR
-            samplerDescriptor.minFilter = "nearest";
-            samplerDescriptor.mipmapFilter = "linear";
-            break;
-        case 0x2703: // LINEAR_MIPMAP_LINEAR
-            samplerDescriptor.minFilter = "linear";
-            samplerDescriptor.mipmapFilter = "linear";
-            break;
-        default:
-            samplerDescriptor.minFilter = "linear";
-        // throw new Error(`unsupported minFilter: 0x${gltfSampler.minFilter!.toString(16)}`);
+    const byteLength = accessor.count * arrayConstructor.BYTES_PER_ELEMENT;
+
+    if (!buffer.arrayBuffer) {
+        console.warn(`Buffer at index ${bufferIndex} has undefined arrayBuffer`);
+        return null;
     }
 
-    samplerDescriptor.addressModeU = convertWrapModeEnum(gltfSampler.wrapS!);
-    samplerDescriptor.addressModeV = convertWrapModeEnum(gltfSampler.wrapT!);
+    if (byteOffset + byteLength > buffer.arrayBuffer.byteLength) {
+        console.warn(
+            `Attempting to read beyond buffer length. ByteOffset: ${byteOffset}, ByteLength: ${byteLength}, Buffer length: ${buffer.arrayBuffer.byteLength}`
+        );
+        return null;
+    }
 
-    return device.createSampler(samplerDescriptor);
+    return new arrayConstructor(buffer.arrayBuffer, byteOffset, accessor.count);
+}
+
+export function setupLoaders() {
+    registerLoaders([GLTFLoader, ImageLoader]);
+}
+
+// Helper function to get pixel data from a glTF image
+async function getPixelDataFromGltfImage(
+    gltfImage: {
+        image?: ImageBitmap;
+        uri?: string;
+    },
+    basePath: string
+): Promise<{ data: Float32Array; width: number; height: number }> {
+    let imageBitmap: ImageBitmap;
+    if (gltfImage.image) {
+        imageBitmap = gltfImage.image;
+    } else if (gltfImage.uri) {
+        if (basePath.length == 0) {
+            basePath = "./";
+        } else if (basePath[basePath.length - 1] !== "/") {
+            basePath = basePath.slice(0, basePath.lastIndexOf("/") + 1);
+        }
+        const resolvedUri = `${basePath}${gltfImage.uri}`;
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = resolvedUri;
+        await img.decode();
+        imageBitmap = await createImageBitmap(img);
+    } else {
+        throw new Error("No image data available");
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = imageBitmap.width;
+    canvas.height = imageBitmap.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+        throw new Error("Failed to get canvas context for image");
+    }
+    ctx.drawImage(imageBitmap, 0, 0);
+    const imageData = ctx.getImageData(0, 0, imageBitmap.width, imageBitmap.height);
+    const data = imageData.data;
+    const pixelCount = imageBitmap.width * imageBitmap.height;
+    const floatData = new Float32Array(pixelCount * 4);
+    for (let i = 0; i < pixelCount; i++) {
+        floatData[i * 4 + 0] = data[i * 4 + 0] / 255.0;
+        floatData[i * 4 + 1] = data[i * 4 + 1] / 255.0;
+        floatData[i * 4 + 2] = data[i * 4 + 2] / 255.0;
+        floatData[i * 4 + 3] = data[i * 4 + 3] / 255.0;
+    }
+    return { data: floatData, width: imageBitmap.width, height: imageBitmap.height };
 }
 
 export class Scene {
-    private root: Node = new Node();
+    vertexDataArray: VertexData[] = [];
+    triangleDataArray: TriangleData[] = [];
+    geomDataArray: GeomData[] = [];
+    textureDataArrays: Float32Array[] = [];
+    textureDescriptors: TextureDescriptor[] = [];
+    materialDataArray: MaterialData[] = [];
+    currentTextureOffset: number = 0;
 
-    constructor() {
-        this.root.setName("root");
-    }
+    totalVertexCount: number = 0;
+    totalTriangleCount: number = 0;
 
     async loadGltf(
         filePath: string,
@@ -489,265 +266,362 @@ export class Scene {
             gltf: {
                 loadBuffers: true,
                 loadImages: true,
+                decompressMeshes: true,
             },
         })) as GLTFWithBuffers;
 
         const gltf = gltfWithBuffers.json;
 
-        const sceneTextures: Texture[] = [];
-        {
-            const sceneImages: GPUTexture[] = [];
-            for (const gltfImage of gltfWithBuffers.images ?? []) {
-                const imageBitmap = gltfImage as ImageBitmap;
-                sceneImages.push(createTexture(imageBitmap));
-            }
+        const materials = gltf.materials || [];
+        const textures = gltf.textures || [];
+        const images = gltf.images || [];
+        const meshes = gltf.meshes || [];
 
-            const sceneSamplers: GPUSampler[] = [];
-            for (const gltfSampler of gltf.samplers ?? []) {
-                sceneSamplers.push(createSampler(gltfSampler));
-            }
+        // Load textures into buffers
+        for (const gltfTexture of textures) {
+            const sourceIndex = gltfTexture.source;
+            const gltfImage = images[sourceIndex ?? 0];
 
-            for (const gltfTexture of gltf.textures ?? []) {
-                const sourceIndex = gltfTexture.source;
-                const samplerIndex = gltfTexture.sampler;
+            const { data: floatData, width, height } = await getPixelDataFromGltfImage(gltfImage, filePath);
+            this.textureDataArrays.push(floatData);
 
-                const image = sceneImages[sourceIndex ?? 0];
-                const sampler = sceneSamplers[samplerIndex ?? 0] || device.createSampler();
+            const descriptor: TextureDescriptor = {
+                width: width,
+                height: height,
+                offset: this.currentTextureOffset,
+            };
+            this.textureDescriptors.push(descriptor);
 
-                sceneTextures.push(new Texture(image, sampler));
-            }
+            const numPixels = width * height;
+            this.currentTextureOffset += numPixels;
         }
 
-        const sceneMaterials: Material[] = [];
-        for (const gltfMaterial of gltf.materials ?? []) {
-            sceneMaterials.push(new Material(gltfMaterial, sceneTextures));
-        }
+        // Extract material data
+        this.materialDataArray.push(
+            ...materials.map((material) => {
+                const pbr = material.pbrMetallicRoughness ?? {};
+                const emissiveFactor = material.emissiveFactor ?? [0, 0, 0];
+                const emissiveTextureIndex = material.emissiveTexture?.index ?? -1;
 
-        const sceneMeshes: Mesh[] = [];
-        for (const gltfMesh of gltf.meshes ?? []) {
-            sceneMeshes.push(new Mesh(gltfMesh, gltfWithBuffers, sceneMaterials));
-        }
-
-        let sceneRoot: Node = new Node();
-        sceneRoot.setName("scene root");
-        sceneRoot.setParent(this.root);
-
-        let sceneNodes: Node[] = [];
-        for (let gltfNode of gltf.nodes!) {
-            let newNode = new Node();
-            newNode.setName(gltfNode.name);
-            newNode.setParent(sceneRoot);
-
-            if (gltfNode.mesh != undefined) {
-                newNode.mesh = sceneMeshes[gltfNode.mesh];
-            }
-
-            newNode.transform = mat4.identity();
-            if (gltfNode.matrix) {
-                newNode.transform = new Float32Array(gltfNode.matrix);
-            } else {
-                if (gltfNode.translation) {
-                    newNode.transform = mat4.mul(newNode.transform, mat4.translation(gltfNode.translation));
+                let matType = 1; // Default to Lambertian
+                if (emissiveFactor.some((v) => v !== 0) || emissiveTextureIndex !== -1) {
+                    matType = 0; // Emissive
+                } else if (pbr.metallicFactor === 1.0) {
+                    matType = 2; // Metal
                 }
 
-                if (gltfNode.rotation) {
-                    newNode.transform = mat4.mul(newNode.transform, mat4.fromQuat(gltfNode.rotation));
-                }
-
-                if (gltfNode.scale) {
-                    newNode.transform = mat4.mul(newNode.transform, mat4.scaling(gltfNode.scale));
-                }
-            }
-
-            sceneNodes.push(newNode);
-        }
-
-        for (let nodeIdx = 0; nodeIdx < (gltf.nodes ?? []).length; nodeIdx++) {
-            const gltfNode = gltf.nodes![nodeIdx];
-
-            for (const childNodeIdx of gltfNode.children ?? []) {
-                sceneNodes[childNodeIdx].setParent(sceneNodes[nodeIdx]);
-            }
-        }
-
-        const scaleMat = mat4.scaling(scale);
-        const translateMat = mat4.translation(translation);
-        const rotateX = mat4.rotationX(rotation[0]);
-        const rotateY = mat4.rotationY(rotation[1]);
-        const rotateZ = mat4.rotationZ(rotation[2]);
-        const rotateMat = mat4.mul(rotateZ, mat4.mul(rotateY, rotateX));
-        const parentMat = mat4.mul(translateMat, mat4.mul(rotateMat, scaleMat));
-        sceneRoot.propagateTransformations(parentMat);
-    }
-
-    iterate(
-        nodeFunction: (node: Node) => void,
-        materialFunction: (material: Material) => void,
-        primFunction: (primitive: Primitive) => void
-    ) {
-        let nodes = [this.root];
-
-        let lastMaterialId: number | undefined;
-
-        while (nodes.length > 0) {
-            const node = nodes.pop() as Node;
-            if (node.mesh) {
-                nodeFunction(node);
-
-                for (const primitive of node.mesh.primitives) {
-                    if (primitive.material && primitive.material.id !== lastMaterialId) {
-                        materialFunction(primitive.material);
-                        lastMaterialId = primitive.material.id;
-                    }
-
-                    primFunction(primitive);
-                }
-            }
-
-            nodes.push(...node.children);
-        }
-    }
-
-    constructGeometry() {
-        const geomsArray: GeomData[] = [];
-        const trianglesArray: TriangleData[] = [];
-        const bvhNodesArray: BVHNodeData[] = [];
-        let triangleStartIdx = 0;
-
-        const traverse = (node: Node) => {
-            if (node.mesh) {
-                const geomData: GeomData = {
-                    transform: node.worldTransform,
-                    inverseTransform: mat4.inverse(node.worldTransform),
-                    invTranspose: mat4.transpose(mat4.inverse(node.worldTransform)),
-                    geomType: 2, // MESH
-                    materialId: 0,
-                    triangleCount: 0,
-                    triangleStartIdx,
-                    bvhRootNodeIdx: -1,
+                return {
+                    baseColorFactor: pbr.baseColorFactor || [1, 1, 1, 1],
+                    baseColorTextureIndex: pbr.baseColorTexture?.index ?? -1,
+                    metallicFactor: pbr.metallicFactor ?? 1.0,
+                    roughnessFactor: pbr.roughnessFactor ?? 1.0,
+                    emissiveFactor,
+                    emissiveTextureIndex,
+                    matType,
                 };
+            })
+        );
 
-                let triangleCount = 0;
-                for (const primitive of node.mesh.primitives) {
-                    const vertsArray = primitive.vertsArray;
-                    const indicesArray = primitive.indicesArray;
-                    const numVerts = vertsArray.length / 8; // 8 floats per vertex
-                    const positions = [];
+        // Create geometry buffers for meshes
+        for (const mesh of meshes) {
+            for (const primitive of mesh.primitives) {
+                if (primitive.indices === undefined) {
+                    console.warn("Primitive has no indices.");
+                    continue;
+                }
+                const indices = getIndexArray(gltfWithBuffers, primitive.indices);
+                const positions = getFloatArray(gltfWithBuffers, primitive.attributes.POSITION);
+                const normals = getFloatArray(gltfWithBuffers, primitive.attributes.NORMAL);
+                const uvs = getFloatArray(gltfWithBuffers, primitive.attributes.TEXCOORD_0);
+                const materialIndex = primitive.material !== undefined ? primitive.material : -1;
 
-                    for (let i = 0; i < numVerts; i++) {
-                        const x = vertsArray[i * 8];
-                        const y = vertsArray[i * 8 + 1];
-                        const z = vertsArray[i * 8 + 2];
-                        const pos = vec3.create(x, y, z);
-                        const transformedPos = vec3.transformMat4(pos, node.worldTransform);
-                        positions.push(transformedPos);
-                    }
-
-                    for (let i = 0; i < indicesArray.length; i += 3) {
-                        const idx0 = indicesArray[i];
-                        const idx1 = indicesArray[i + 1];
-                        const idx2 = indicesArray[i + 2];
-                        const v0 = positions[idx0];
-                        const v1 = positions[idx1];
-                        const v2 = positions[idx2];
-                        const triangle = {
-                            v0,
-                            v1,
-                            v2,
-                            materialId: primitive.material?.id ?? -1,
-                        };
-                        trianglesArray.push(triangle);
-                        triangleCount += 1;
-                    }
+                if (!positions || !normals || !uvs || !indices) {
+                    console.warn("Failed to load mesh data.");
+                    continue;
                 }
 
-                geomData.triangleCount = triangleCount;
-                triangleStartIdx += triangleCount;
+                const vertexCount = positions.length / 3;
+                for (let i = 0; i < vertexCount; i++) {
+                    const position = vec3.create(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+                    const normal = vec3.create(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+                    const uv = vec3.create(uvs[i * 2], uvs[i * 2 + 1]);
+                    this.vertexDataArray.push({ position, normal, uv });
+                }
 
-                if (enableBVH) {
-                    // Build BVH for this mesh
-                    const bvhNodeStartIdx = bvhNodesArray.length;
-                    const bvhRootNodeIdx = this.buildBVH(
-                        trianglesArray,
-                        triangleStartIdx - triangleCount,
-                        triangleStartIdx,
-                        bvhNodesArray
-                    );
-                    geomData.bvhRootNodeIdx = bvhRootNodeIdx + bvhNodeStartIdx;
-                } else {
-                    bvhNodesArray.push({
-                        boundsMin: vec3.create(0, 0, 0),
-                        boundsMax: vec3.create(0, 0, 0),
-                        leftChild: -1,
-                        rightChild: -1,
-                        triangleStart: -1,
-                        triangleCount: 0,
+                const adjustedIndices = new Uint32Array(indices.length);
+                for (let i = 0; i < indices.length; i++) {
+                    adjustedIndices[i] = indices[i] + this.totalVertexCount;
+                }
+
+                const triangleCount = adjustedIndices.length / 3;
+                for (let i = 0; i < triangleCount; i++) {
+                    const idx = i * 3;
+                    this.triangleDataArray.push({
+                        v0: adjustedIndices[idx + 0],
+                        v1: adjustedIndices[idx + 1],
+                        v2: adjustedIndices[idx + 2],
+                        materialId: materialIndex,
                     });
                 }
 
-                geomsArray.push(geomData);
-            }
+                this.geomDataArray.push({
+                    transform: mat4.identity(),
+                    inverseTransform: mat4.identity(),
+                    invTranspose: mat4.identity(),
+                    geomType: 2,
+                    materialId: materialIndex,
+                    triangleCount: triangleCount,
+                    triangleStartIdx: this.totalTriangleCount,
+                    bvhRootNodeIdx: -1,
+                });
 
-            for (const child of node.children) {
-                traverse(child);
-            }
-        };
-
-        traverse(this.root);
-
-        return { geomsArray, trianglesArray, bvhNodesArray };
-    }
-
-    buildBVH(trianglesArray: TriangleData[], start: number, end: number, bvhNodes: BVHNodeData[]): number {
-        const nodeIndex = bvhNodes.length;
-        const node: BVHNodeData = {
-            boundsMin: vec3.create(Infinity, Infinity, Infinity),
-            boundsMax: vec3.create(-Infinity, -Infinity, -Infinity),
-            leftChild: -1,
-            rightChild: -1,
-            triangleStart: start,
-            triangleCount: end - start,
-        };
-
-        for (let i = start; i < end; i++) {
-            const tri = trianglesArray[i];
-            for (let j = 0; j < 3; j++) {
-                node.boundsMin[j] = Math.min(node.boundsMin[j], tri.v0[j]);
-                node.boundsMin[j] = Math.min(node.boundsMin[j], tri.v1[j]);
-                node.boundsMin[j] = Math.min(node.boundsMin[j], tri.v2[j]);
-
-                node.boundsMax[j] = Math.max(node.boundsMax[j], tri.v0[j]);
-                node.boundsMax[j] = Math.max(node.boundsMax[j], tri.v1[j]);
-                node.boundsMax[j] = Math.max(node.boundsMax[j], tri.v2[j]);
+                this.totalVertexCount += vertexCount;
+                this.totalTriangleCount += triangleCount;
             }
         }
+    }
 
-        const maxTrianglesPerLeaf = 4;
-        if (end - start <= maxTrianglesPerLeaf) {
-            node.leftChild = -1;
-            node.rightChild = -1;
-        } else {
-            const extent = vec3.subtract(vec3.create(), node.boundsMax, node.boundsMin);
-            let axis = extent.indexOf(Math.max(...extent)); // TODO OPTIMIZE WHICH AXIS
-
-            const trianglesToSort = trianglesArray.slice(start, end);
-            trianglesToSort.sort((a, b) => {
-                const aCenter = (a.v0[axis] + a.v1[axis] + a.v2[axis]) / 3;
-                const bCenter = (b.v0[axis] + b.v1[axis] + b.v2[axis]) / 3;
-                return aCenter - bCenter;
-            });
-            for (let i = start; i < end; i++) {
-                trianglesArray[i] = trianglesToSort[i - start];
-            }
-
-            const mid = Math.floor((start + end) / 2); // TODO OPTIMIZE SPLITTING (PICK MEDIAN)
-            node.leftChild = this.buildBVH(trianglesArray, start, mid, bvhNodes);
-            node.rightChild = this.buildBVH(trianglesArray, mid, end, bvhNodes);
-            node.triangleStart = -1;
-            node.triangleCount = 0;
+    createBuffersAndBindGroup = () => {
+        // Vertex Buffer
+        const totalVertexData = new Float32Array(this.totalVertexCount * 12);
+        let offset = 0;
+        for (const vertex of this.vertexDataArray) {
+            totalVertexData.set(vertex.position, offset);
+            offset += 4;
+            totalVertexData.set(vertex.normal, offset);
+            offset += 4;
+            totalVertexData.set(vertex.uv, offset);
+            offset += 4;
         }
 
-        bvhNodes.push(node);
-        return nodeIndex;
-    }
+        const vertexBuffer = device.createBuffer({
+            label: "vertices",
+            size: totalVertexData.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true,
+        });
+        new Float32Array(vertexBuffer.getMappedRange()).set(totalVertexData);
+        vertexBuffer.unmap();
+
+        // Triangle Buffer
+        const trianglesSize = this.triangleDataArray.length;
+        const trianglesBufferSize = trianglesSize * 16;
+        const triangleHostBuffer = new ArrayBuffer(trianglesBufferSize);
+        const triangleDataView = new DataView(triangleHostBuffer);
+        offset = 0;
+
+        for (const tri of this.triangleDataArray) {
+            triangleDataView.setUint32(offset, tri.v0, true);
+            offset += 4;
+            triangleDataView.setUint32(offset, tri.v1, true);
+            offset += 4;
+            triangleDataView.setUint32(offset, tri.v2, true);
+            offset += 4;
+            triangleDataView.setInt32(offset, tri.materialId, true);
+            offset += 4;
+        }
+
+        const triangleBuffer = device.createBuffer({
+            label: "triangles",
+            size: triangleDataView.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(triangleBuffer, 0, triangleHostBuffer);
+
+        // Geometry Buffer
+        const geomsSize = this.geomDataArray.length;
+        const geomsBufferSize = 16 + geomsSize * (16 * 4 * 3 + 16 * 2);
+        const geomHostBuffer = new ArrayBuffer(geomsBufferSize);
+        const geomDataView = new DataView(geomHostBuffer);
+        offset = 0;
+
+        geomDataView.setUint32(offset, geomsSize, true);
+        offset += 16;
+
+        for (const geomData of this.geomDataArray) {
+            for (const mat of [geomData.transform, geomData.inverseTransform, geomData.invTranspose]) {
+                for (let i = 0; i < 16; i++) {
+                    geomDataView.setFloat32(offset, mat[i], true);
+                    offset += 4;
+                }
+            }
+            geomDataView.setUint32(offset, geomData.geomType, true);
+            offset += 4;
+            geomDataView.setInt32(offset, geomData.materialId, true);
+            offset += 4;
+            geomDataView.setUint32(offset, geomData.triangleCount, true);
+            offset += 4;
+            geomDataView.setInt32(offset, geomData.triangleStartIdx, true);
+            offset += 4;
+            geomDataView.setInt32(offset, geomData.bvhRootNodeIdx, true);
+            offset += 16;
+        }
+
+        const geomBuffer = device.createBuffer({
+            label: "geoms",
+            size: geomDataView.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(geomBuffer, 0, geomDataView);
+
+        // Material Buffer
+        const materialsSize = this.materialDataArray.length;
+        const materialsBufferSize = materialsSize * 48;
+        const materialHostBuffer = new ArrayBuffer(materialsBufferSize);
+        const materialDataView = new DataView(materialHostBuffer);
+
+        offset = 0;
+        for (const material of this.materialDataArray) {
+            for (let i = 0; i < 4; i++) {
+                materialDataView.setFloat32(offset, material.baseColorFactor[i], true);
+                offset += 4;
+            }
+            for (let i = 0; i < 3; i++) {
+                materialDataView.setFloat32(offset, material.emissiveFactor[i], true);
+                offset += 4;
+            }
+            materialDataView.setFloat32(offset, material.metallicFactor, true);
+            offset += 4;
+            materialDataView.setFloat32(offset, material.roughnessFactor, true);
+            offset += 4;
+            materialDataView.setUint32(offset, material.baseColorTextureIndex, true);
+            offset += 4;
+            materialDataView.setUint32(offset, material.emissiveTextureIndex, true);
+            offset += 4;
+            materialDataView.setUint32(offset, material.matType, true);
+            offset += 4;
+        }
+
+        const materialBuffer = device.createBuffer({
+            label: "materials",
+            size: materialHostBuffer.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(materialBuffer, 0, materialHostBuffer);
+
+        // Texture Data Buffer
+        let totalTextureDataLength = 0;
+        for (const floatData of this.textureDataArrays) {
+            totalTextureDataLength += floatData.length;
+        }
+        const textureData = new Float32Array(totalTextureDataLength);
+        let textureDataOffset = 0;
+        for (const floatData of this.textureDataArrays) {
+            textureData.set(floatData, textureDataOffset);
+            textureDataOffset += floatData.length;
+        }
+
+        const textureDataBuffer = device.createBuffer({
+            label: "texture data",
+            size: textureData.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true,
+        });
+        new Float32Array(textureDataBuffer.getMappedRange()).set(textureData);
+        textureDataBuffer.unmap();
+
+        // Texture Descriptors Buffer
+        const descriptorsData = new Uint32Array(this.textureDescriptors.length * 4);
+        for (let i = 0; i < this.textureDescriptors.length; i++) {
+            const desc = this.textureDescriptors[i];
+            const offset = i * 4;
+            descriptorsData[offset + 0] = desc.width;
+            descriptorsData[offset + 1] = desc.height;
+            descriptorsData[offset + 2] = desc.offset;
+            descriptorsData[offset + 3] = 0;
+        }
+
+        const descriptorsBuffer = device.createBuffer({
+            label: "texture descriptors",
+            size: descriptorsData.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true,
+        });
+        new Uint32Array(descriptorsBuffer.getMappedRange()).set(descriptorsData);
+        descriptorsBuffer.unmap();
+
+        const dummyBuffer = device.createBuffer({
+            size: 16,
+            usage: GPUBufferUsage.STORAGE,
+            mappedAtCreation: true,
+        });
+        new Uint8Array(dummyBuffer.getMappedRange()).fill(0);
+        dummyBuffer.unmap();
+
+        // Bind groups
+        const geometryBindGroupLayout = device.createBindGroupLayout({
+            entries: [
+                // Vertex buffer
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                // Triangle buffer
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                // Geom buffer
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                // BVH nodes
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+            ],
+        });
+        const textureBindGroupLayout = device.createBindGroupLayout({
+            entries: [
+                // Material buffer
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                // Texture Descriptors buffer
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                // Texture Data buffer
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+            ],
+        });
+
+        // TODO: Fix bvh buffer
+        const geometryBindGroupEntries: GPUBindGroupEntry[] = [
+            { binding: 0, resource: { buffer: vertexBuffer } },
+            { binding: 1, resource: { buffer: triangleBuffer } },
+            { binding: 2, resource: { buffer: geomBuffer } },
+            { binding: 3, resource: { buffer: geomBuffer } },
+        ];
+        const textureBindGroupEntries: GPUBindGroupEntry[] = [
+            { binding: 0, resource: { buffer: materialBuffer } },
+            { binding: 1, resource: { buffer: descriptorsData.byteLength > 0 ? descriptorsBuffer : dummyBuffer } },
+            { binding: 2, resource: { buffer: textureData.byteLength > 0 ? textureDataBuffer : dummyBuffer } },
+        ];
+
+        const geometryBindGroup = device.createBindGroup({
+            layout: geometryBindGroupLayout,
+            entries: geometryBindGroupEntries,
+        });
+        const textureBindGroup = device.createBindGroup({
+            layout: textureBindGroupLayout,
+            entries: textureBindGroupEntries,
+        });
+
+        return { geometryBindGroup, geometryBindGroupLayout, textureBindGroup, textureBindGroupLayout };
+    };
 }
