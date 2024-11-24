@@ -54,22 +54,31 @@ struct Geom
     bvhRootNodeIdx : i32
 };
 
-struct Triangle {
-    v0: vec4f,
-    v1: vec4f,
-    v2: vec4f,
-    materialId: i32
-};
-
 struct Geoms {
     geomsSize : u32,
     geoms : array<Geom>
 }
 
+struct Vertex {
+    position: vec3f,
+    normal: vec3f,
+    uv: vec2f,
+};
+
+struct Vertices {
+    vertices: array<Vertex>
+};
+
+struct Triangle {
+    v0: u32,
+    v1: u32,
+    v2: u32,
+    materialId: i32
+};
+
 struct Triangles {
-    trisSize : u32,
-    tris : array<Triangle>
-}
+    tris: array<Triangle>
+};
 
 struct BVHNode {
     boundsMin: vec4f,
@@ -85,25 +94,21 @@ struct BVHNodes {
     nodes: array<BVHNode>
 };
 
-struct Material
-{
-    // matType : u32, // 0 == emissive, 1 == lambertian
-    // emittance : f32,
-    // roughness : f32,
-    params : vec3f,
-    color : vec3f,
+struct Material {
+    baseColorFactor: vec4f,
+    emissiveFactor: vec3f,
+    metallicFactor: f32,
+    roughnessFactor: f32,
+    baseColorTextureIndex: i32,  // index into textureDescriptors
+    emissiveTextureIndex: i32,   // index into textureDescriptors
+    matType: i32,                // material type (0: Emissive, 1: Lambertian, 2: Metal)
 };
-
-struct Materials
-{
-    materialsSize : u32,
-    materials : array<Material>
-}
 
 struct Intersection
 {
     surfaceNormal : vec3<f32>,
     t : f32,
+    uv : vec2<f32>,
     materialId : i32 // materialId == -1 means no intersection
 };
 
@@ -118,7 +123,8 @@ struct HitInfo
     dist : f32,
     normal : vec3<f32>,
     outside : u32,
-    hitTriIndex : i32
+    uv : vec2<f32>,
+    materialId : i32
 }
 
 struct CameraUniforms {
@@ -171,4 +177,13 @@ fn calculateLightContribToonShading(light: Light, posWorld: vec3f, viewDir: vec3
 fn applyTransform(p: vec4<f32>, transform: mat4x4<f32>) -> vec3<f32> {
     let transformed = transform * p;
     return transformed.xyz / transformed.w;
+}
+
+// cannot use WebGPU built in Textures since we need all loaded in memory
+// at once for compute shader
+// https://nelari.us/post/weekend_raytracing_with_wgpu_2/#adding-texture-support
+struct TextureDescriptor {
+    width: u32,
+    height: u32,
+    offset: u32,
 }
