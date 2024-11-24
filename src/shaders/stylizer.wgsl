@@ -1,9 +1,8 @@
 fn shouldStylize(sc : StyleContext) -> u32 
 {
-    // sc.params.y = objectId, z = path prefix
-    if (sc.params.y == 0.0f && sc.params.z > 2.9f && sc.params.z < 8.1f) {
-        // hero model .y = 0
-        // mirrors objectId = 3 ~ 8 
+    // sc.params.y = objectId, z = path prefix, w = styleType
+    if ((sc.params.w == 1u && sc.params.y == 1u) || sc.params.w == 2u) {
+        // hero model .y = 1
         return 1u;
     }
     return 0u;
@@ -20,17 +19,20 @@ fn shouldStylize(sc : StyleContext) -> u32
 fn style(sc : StyleContext, samples : vec3f) -> vec3f
 {
     if (shouldStylize(sc) == 0u) {
+        // Identity style
         return samples;
     }
 
-    if (sc.params.z == 3.0f) {
-        // greyscale
+    if (sc.params.w == 1u) {
+        // greyscale target models
         return styleGreyscale(sc, samples);
-    } else if (sc.params.z == 4.0f) {
-        // ???
+    } else if (sc.params.w == 2u) {
+        // greyscale whole scene
+        return styleGreyscale(sc, samples);
     }
 
-    return vec3f(0.0);
+    // undefined, apply identity stylization
+    return samples;
 }
 
 fn styleGreyscale(sc : StyleContext, samples : vec3f) -> vec3f 

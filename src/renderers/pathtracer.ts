@@ -12,11 +12,11 @@ export class Pathtracer extends renderer.Renderer {
 
     emptyBuffer: GPUBuffer;
 
-    static readonly numGeoms = 4;
+    static readonly numGeoms = 9;
     static readonly numFloatsPerGeom = 52;
     geomsArray = new Float32Array(Pathtracer.numFloatsPerGeom * Pathtracer.numGeoms);
 
-    static readonly numMats = 4;
+    static readonly numMats = 8;
     static readonly numFloatsPerMat = 8;
     materialsArray = new Float32Array(Pathtracer.numFloatsPerMat * Pathtracer.numMats);
 
@@ -395,30 +395,87 @@ export class Pathtracer extends renderer.Renderer {
         for (let geomIdx = 0; geomIdx < Pathtracer.numGeoms; geomIdx++) {
             if (geomIdx == 0) {
                 // A cube
-                this.geomsArray.set(vec4.create(0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                this.geomsArray.set(vec4.create(0, 4, 1, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
                 this.geomsArray.set(identityMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
                 this.geomsArray.set(mat4.inverse(identityMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
                 this.geomsArray.set(mat4.transpose(mat4.inverse(identityMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
             } else if (geomIdx == 1) {
-                // Left Light
-                this.geomsArray.set(vec4.create(0, 1, 0, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
-                const translateMat4 = mat4.transpose(mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.1, 0.0, 0.0, 1.0, 0.3, 0.0, 0.0, 0.0, 1.0));
-                this.geomsArray.set(translateMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
-                this.geomsArray.set(mat4.inverse(translateMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
-                this.geomsArray.set(mat4.transpose(mat4.inverse(translateMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
+                // Floor
+                this.geomsArray.set(vec4.create(0, 0, 2, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                const scaleMat4 = mat4.create(10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const rotateMat4 = identityMat4;
+                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -2.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+                this.geomsArray.set(transformMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
+                this.geomsArray.set(mat4.inverse(transformMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
+                this.geomsArray.set(mat4.transpose(mat4.inverse(transformMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
             } else if (geomIdx == 2) {
-                // Right Light
-                this.geomsArray.set(vec4.create(1, 2, 0, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
-                const translateMat4 = mat4.transpose(mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 1.0));
-                this.geomsArray.set(translateMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
-                this.geomsArray.set(mat4.inverse(translateMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
-                this.geomsArray.set(mat4.transpose(mat4.inverse(translateMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
+                // Top light
+                this.geomsArray.set(vec4.create(0, 3, 3, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                const scaleMat4 = mat4.create(10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const rotateMat4 = identityMat4;
+                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 5.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+                this.geomsArray.set(transformMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
+                this.geomsArray.set(mat4.inverse(transformMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
+                this.geomsArray.set(mat4.transpose(mat4.inverse(transformMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
             } else if (geomIdx == 3) {
-                // Mirror greyscale
-                this.geomsArray.set(vec4.create(0, 3, 0, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
-                const scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-                const rotateMat4 = mat4.create(0.7071, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0);
-                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 4.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -4.0, 0.0, 0.0, 0.0, 1.0);
+                // Back Wall
+                this.geomsArray.set(vec4.create(0, 0, 4, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                const scaleMat4 = mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const rotateMat4 = identityMat4;
+                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 5.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+                this.geomsArray.set(transformMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
+                this.geomsArray.set(mat4.inverse(transformMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
+                this.geomsArray.set(mat4.transpose(mat4.inverse(transformMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
+            } else if (geomIdx == 4) {
+                // Left Wall
+                this.geomsArray.set(vec4.create(0, 1, 5, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                const scaleMat4 = mat4.create(10.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const rotateMat4 = identityMat4;
+                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 5.0, 0.0, 0.0, 0.0, 1.0);
+                const transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+                this.geomsArray.set(transformMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
+                this.geomsArray.set(mat4.inverse(transformMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
+                this.geomsArray.set(mat4.transpose(mat4.inverse(transformMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
+            } else if (geomIdx == 5) {
+                // Right Wall
+                this.geomsArray.set(vec4.create(0, 2, 6, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                const scaleMat4 = mat4.create(10.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const rotateMat4 = identityMat4;
+                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -5.0, 0.0, 0.0, 0.0, 1.0);
+                const transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+                this.geomsArray.set(transformMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
+                this.geomsArray.set(mat4.inverse(transformMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
+                this.geomsArray.set(mat4.transpose(mat4.inverse(transformMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
+            } else if (geomIdx == 6) {
+                // Left Mirror greyscale
+                this.geomsArray.set(vec4.create(0, 6, 7, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                const scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const rotateMat4 = mat4.create(0.7071, 0.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0, -0.5, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
+                // const rotateMat4 = mat4.create(0.866, 0.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0, -0.5, 0.0, 0.866, 0.0, 0.0, 0.0, 0.0, 1.0); // 30 degrees
+                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -3.6, 0.0, 0.0, 0.0, 1.0);
+                const transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+                this.geomsArray.set(transformMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
+                this.geomsArray.set(mat4.inverse(transformMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
+                this.geomsArray.set(mat4.transpose(mat4.inverse(transformMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
+            } else if (geomIdx == 7) {
+                // Middle Mirror regular 
+                this.geomsArray.set(vec4.create(0, 5, 8, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                const scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const rotateMat4 = identityMat4;
+                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 5.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+                this.geomsArray.set(transformMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
+                this.geomsArray.set(mat4.inverse(transformMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
+                this.geomsArray.set(mat4.transpose(mat4.inverse(transformMat4)), Pathtracer.numFloatsPerGeom * geomIdx + 36);
+            } else if (geomIdx == 8) {
+                // Right Mirror 
+                this.geomsArray.set(vec4.create(0, 7, 9, 0), Pathtracer.numFloatsPerGeom * geomIdx + 0);
+                const scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+                const rotateMat4 = mat4.create(0.5, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
+                const translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 3.6, 0.0, 0.0, 0.0, 1.0);
                 const transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
                 this.geomsArray.set(transformMat4, Pathtracer.numFloatsPerGeom * geomIdx + 4);
                 this.geomsArray.set(mat4.inverse(transformMat4), Pathtracer.numFloatsPerGeom * geomIdx + 20);
@@ -432,19 +489,32 @@ export class Pathtracer extends renderer.Renderer {
         // matType : u32, // 0 == emissive, 1 == lambertian, 2 == metal
         // emittance : f32,
         // roughness : f32,
+        // styleType : f32
         // color : vec3f,
         for (let matIdx = 0; matIdx < Pathtracer.numMats; matIdx++) {
-            if (matIdx == 0) {
+            if (matIdx == 0) { // white lambertian
                 this.materialsArray.set(vec4.create(1.0, 0.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
                 this.materialsArray.set(vec4.create(1.0, 1.0, 1.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
-            } else if (matIdx == 1) {
-                this.materialsArray.set(vec4.create(0.0, 1.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
+            } else if (matIdx == 1) { // red lambertian
+                this.materialsArray.set(vec4.create(1.0, 0.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
                 this.materialsArray.set(vec4.create(1.0, 0.0, 0.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
-            } else if (matIdx == 2) {
-                this.materialsArray.set(vec4.create(0.0, 1.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
+            } else if (matIdx == 2) { // green lambertian
+                this.materialsArray.set(vec4.create(1.0, 0.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
                 this.materialsArray.set(vec4.create(0.0, 1.0, 0.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
-            } else if (matIdx == 3) {
+            } else if (matIdx == 3) { // light source
+                this.materialsArray.set(vec4.create(0.0, 1.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
+                this.materialsArray.set(vec4.create(1.0, 1.0, 1.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
+            } else if (matIdx == 4) { // hero model lambertian
+                    this.materialsArray.set(vec4.create(1.0, 0.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
+                    this.materialsArray.set(vec4.create(1.0, 1.0, 0.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
+            } else if (matIdx == 5) { // perfect mirror
                 this.materialsArray.set(vec4.create(2.0, 0.0, 0.0, 0.0), Pathtracer.numFloatsPerMat * matIdx + 0);
+                this.materialsArray.set(vec4.create(1.0, 1.0, 1.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
+            } else if (matIdx == 6) { // stylized mirror (greyscale hero model)
+                this.materialsArray.set(vec4.create(2.0, 0.0, 0.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 0);
+                this.materialsArray.set(vec4.create(1.0, 1.0, 1.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
+            } else if (matIdx == 7) { // stylized mirror (greyscale whole scene)
+                this.materialsArray.set(vec4.create(2.0, 0.0, 0.0, 2.0), Pathtracer.numFloatsPerMat * matIdx + 0);
                 this.materialsArray.set(vec4.create(1.0, 1.0, 1.0, 1.0), Pathtracer.numFloatsPerMat * matIdx + 4);
             }
         }

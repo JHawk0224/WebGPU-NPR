@@ -35,6 +35,8 @@ fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
         segment.color = vec3(1.0f, 1.0f, 1.0f);
         segment.pixelIndex = i32(index);
         segment.remainingBounces = i32(cameraUniforms.depth);
+        segment.pathPrefix = 0u;
+        segment.appliedStyleType = 0u;
     }
 }
 
@@ -60,11 +62,12 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
         {
             let geom = &geoms.geoms[i];
 
-            if (geom.params[0] == 0.0f)
+            let geomType = u32(geom.params[0]);
+            if (geomType == 0u)
             {
                 tempHit = boxIntersectionTest(geom, pathSegment.ray);
             }
-            else if (geom.params[0] == 1.0f)
+            else if (geomType == 1u)
             {
                 tempHit = sphereIntersectionTest(geom, pathSegment.ray);
             }
@@ -88,7 +91,8 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
         {
             // The ray hits something
             intersections.intersections[index].t = closestHit.dist;
-            intersections.intersections[index].materialId = geoms.geoms[hitGeomIndex].params[1];
+            intersections.intersections[index].materialId = i32(geoms.geoms[hitGeomIndex].params[1]);
+            intersections.intersections[index].objectId = u32(geoms.geoms[hitGeomIndex].params[2]);
             intersections.intersections[index].surfaceNormal = closestHit.normal;
         }
     }
@@ -100,10 +104,7 @@ fn scatterRay(index: u32) {
 
     if (intersect.t < 0.0) {
         // let color = vec3f(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
-        var color = vec3f(0.2);
-        if (pathSegment.remainingBounces == i32(cameraUniforms.depth)) {
-            color = vec3f(0.0);
-        }
+        let color = vec3f(0.0);
         pathSegment.color *= color;
         pathSegment.remainingBounces = -2;
         return;
@@ -120,18 +121,19 @@ fn scatterRay(index: u32) {
     // hopefully we can template if we have time later on
     let dirIn = normalize(pathSegment.ray.direction);
 
-    if (material.params[0] == 0.0f) { // Emissive
+    let matType = u32(material.params[0]);
+    if (matType == 0u) { // Emissive
         pathSegment.remainingBounces = -1;
         bsdf = evalEmissive(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color, material.params[1]);
 
         attenuation = bsdf;
-    } else if (material.params[0] == 1.0f) { // Lambertian
+    } else if (matType == 1u) { // Lambertian
         scattered = scatterLambertian(index, pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t, dirIn, intersect.surfaceNormal);
         bsdf = evalLambertian(dirIn, scattered.ray.direction, intersect.surfaceNormal, material.color);
         pdf = pdfLambertian(dirIn, scattered.ray.direction, intersect.surfaceNormal);
 
         attenuation = bsdf / pdf;
-    } else if (material.params[0] == 2.0f) { // Metal
+    } else if (matType == 2u) { // Metal
         scattered = scatterMetal(index, pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t, intersect.surfaceNormal, dirIn, material.params[2]);
         bsdf = evalMetal(dirIn, scattered.ray.direction, intersect.surfaceNormal, material.color);
 
@@ -146,13 +148,28 @@ fn scatterRay(index: u32) {
         pathSegment.remainingBounces = -1;
         return;
     }
+    
+    // materialId, objectId, path prefix, 
+    // params : vec4<f32>,
+    // position : vec3<f32>,
+    // normal : vec3<f32>,
+    var sc : StyleContext;
+    sc.params = vec4u(u32(intersect.materialId), intersect.objectId, pathSegment.pathPrefix, pathSegment.appliedStyleType);
+    sc.position = scattered.ray.origin;
+    sc.normal = intersect.surfaceNormal;
+
+    attenuation = style(sc, attenuation);
 
     pathSegment.color *= attenuation;
 
-    if (pathSegment.remainingBounces < 0 && material.params[0] != 0.0f) {
+    if (pathSegment.remainingBounces < 0 && matType != 0u) {
         // did not reach a light till max depth, terminate path as invalid
-        pathSegment.color = vec3f(0.0, 0.0, 0.0);
+        pathSegment.color = vec3f(0.0);
     }
+
+    // store path prefix for next iteration
+    pathSegment.pathPrefix = intersect.objectId;
+    pathSegment.appliedStyleType = u32(material.params.w);
 }
 
 @compute

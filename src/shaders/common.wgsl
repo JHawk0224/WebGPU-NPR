@@ -34,6 +34,8 @@ struct PathSegment
     color : vec3f,
     pixelIndex : i32,
     remainingBounces : i32,
+    pathPrefix : u32,
+    appliedStyleType : u32,
 }
 
 struct PathSegments
@@ -46,6 +48,7 @@ struct Geom
 {
     // geomType : i32, // 0 == CUBE, 1 == SPHERE
     // materialid : i32,
+    // objectid
     params : vec4f,
     transform : mat4x4f,
     inverseTransform : mat4x4f,
@@ -63,7 +66,8 @@ struct Material
     // matType : u32, // 0 == emissive, 1 == lambertian
     // emittance : f32,
     // roughness : f32,
-    params : vec3f,
+    // styleType : f32,
+    params : vec4f,
     color : vec3f,
 };
 
@@ -77,7 +81,8 @@ struct Intersection
 {
     surfaceNormal : vec3<f32>,
     t : f32,
-    materialId : f32, // materialId == -1 means no intersection
+    materialId : i32, // materialId == -1 means no intersection
+    objectId : u32,
 };
 
 struct Intersections
@@ -112,9 +117,9 @@ struct CameraUniforms {
 }
 
 struct StyleContext {
-    // materialId, objectId, path prefix, 
+    // materialId, objectId, path prefix, styleType
     // currently just look at last path vertex's objectId
-    params : vec3<f32>,
+    params : vec4<u32>,
     position : vec3<f32>,
     normal : vec3<f32>,
 }
