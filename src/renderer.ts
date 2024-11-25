@@ -22,8 +22,8 @@ export async function initWebGPU() {
     canvas = document.getElementById("mainCanvas") as HTMLCanvasElement;
 
     //const devicePixelRatio = window.devicePixelRatio;
-    canvas.width = canvas.clientWidth;// * devicePixelRatio;
-    canvas.height = canvas.clientHeight;// * devicePixelRatio;
+    canvas.width = canvas.clientWidth; // * devicePixelRatio;
+    canvas.height = canvas.clientHeight; // * devicePixelRatio;
 
     aspectRatio = canvas.width / canvas.height;
 
@@ -51,6 +51,10 @@ export async function initWebGPU() {
             : hasBGRA8unormStorage
               ? ["bgra8unorm-storage"]
               : [],
+        // requiredLimits: {
+        //     maxStorageBufferBindingSize: 2147483644,
+        //     maxBufferSize: 2147483644,
+        // },
     });
 
     context = canvas.getContext("webgpu")!;
@@ -62,6 +66,7 @@ export async function initWebGPU() {
     });
 
     console.log("WebGPU init successful");
+    console.log(device.label);
 
     modelBindGroupLayout = device.createBindGroupLayout({
         label: "model bind group layout",

@@ -4,9 +4,18 @@
 @group(${bindGroup_pathtracer}) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(${bindGroup_pathtracer}) @binding(1) var inputTex : texture_2d<f32>;
 @group(${bindGroup_pathtracer}) @binding(2) var<storage, read_write> pathSegments : PathSegments;
-@group(${bindGroup_pathtracer}) @binding(3) var<storage, read_write> geoms : Geoms;
-@group(${bindGroup_pathtracer}) @binding(4) var<storage, read_write> materials : Materials;
-@group(${bindGroup_pathtracer}) @binding(5) var<storage, read_write> intersections : Intersections;
+@group(${bindGroup_pathtracer}) @binding(3) var<storage, read_write> intersections : Intersections;
+
+@group(${bindGroup_geometry}) @binding(0) var<storage, read> vertices : Vertices;
+@group(${bindGroup_geometry}) @binding(1) var<storage, read> tris : Triangles;
+@group(${bindGroup_geometry}) @binding(2) var<storage, read> geoms : Geoms;
+@group(${bindGroup_geometry}) @binding(3) var<storage, read> bvhNodes : BVHNodes;
+
+@group(${bindGroup_textures}) @binding(0) var<storage, read> materials : array<Material>;
+// TextureDescriptor contains offset into texture buffer, and dimensions
+@group(${bindGroup_textures}) @binding(1) var<storage, read> textureDescriptors: array<TextureDescriptor>;
+// Texture buffer contains textures from all meshes, appended end to end
+@group(${bindGroup_textures}) @binding(2) var<storage, read> textures: Textures;
 
 @compute
 @workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
@@ -32,7 +41,7 @@ fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
         segment.ray.origin = cameraUniforms.cameraPos + cameraUniforms.right * apertureOrigin[0] + cameraUniforms.up * apertureOrigin[1];
         // segment.ray.direction = normalize(segment.ray.direction * cameraUniforms.focalLength + cameraUniforms.position - segment.ray.origin);
 
-        segment.color = vec3(1.0f, 1.0f, 1.0f);
+        segment.color = vec3f(1.0);
         segment.pixelIndex = i32(index);
         segment.remainingBounces = i32(cameraUniforms.depth);
         segment.pathPrefix = 0u;
@@ -62,14 +71,17 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
         {
             let geom = &geoms.geoms[i];
 
-            let geomType = u32(geom.params[0]);
-            if (geomType == 0u)
+            if (geom.geomType == 0)
             {
                 tempHit = boxIntersectionTest(geom, pathSegment.ray);
             }
-            else if (geomType == 1u)
+            else if (geom.geomType == 1)
             {
                 tempHit = sphereIntersectionTest(geom, pathSegment.ray);
+            }
+            else if (geom.geomType == 2)
+            {
+                tempHit = meshIntersectionTest(geom, &vertices, &tris, &bvhNodes, pathSegment.ray);
             }
 
             // Compute the minimum t from the intersection tests to determine what
@@ -91,9 +103,10 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
         {
             // The ray hits something
             intersections.intersections[index].t = closestHit.dist;
-            intersections.intersections[index].materialId = i32(geoms.geoms[hitGeomIndex].params[1]);
-            intersections.intersections[index].objectId = u32(geoms.geoms[hitGeomIndex].params[2]);
+            intersections.intersections[index].materialId = closestHit.materialId;
+            intersections.intersections[index].objectId = u32(geoms.geoms[hitGeomIndex].objectId);
             intersections.intersections[index].surfaceNormal = closestHit.normal;
+            intersections.intersections[index].uv = closestHit.uv;
         }
     }
 }
@@ -110,8 +123,8 @@ fn scatterRay(index: u32) {
         return;
     }
 
-    let matId = u32(intersect.materialId);
-    let material = &materials.materials[matId];
+    let matId: u32 = bitcast<u32>(intersect.materialId);
+    let material = &materials[matId];
 
     var scattered : PathSegment;
     var bsdf : vec3f;
@@ -119,23 +132,48 @@ fn scatterRay(index: u32) {
     var attenuation : vec3f;
 
     // hopefully we can template if we have time later on
-    let dirIn = normalize(pathSegment.ray.direction);
+    let dirIn = normalize(-pathSegment.ray.direction);
 
-    let matType = u32(material.params[0]);
-    if (matType == 0u) { // Emissive
-        pathSegment.remainingBounces = -1;
-        bsdf = evalEmissive(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, material.color, material.params[1]);
+    let hitPoint = pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t;
+    let normal = intersect.surfaceNormal;
+    let uv = intersect.uv;
+
+    var baseColor = material.baseColorFactor.rgb;
+    if (material.baseColorTextureIndex >= 0) {
+        let texDesc = textureDescriptors[material.baseColorTextureIndex];
+        baseColor *= textureLookup(texDesc, uv.x, uv.y, &textures);
+    }
+
+    if (material.matType == 0) { // Emissive
+        var emissiveColor = material.emissiveFactor.rgb;
+        var emissiveFactor = vec3f(1.0);
+        if (material.emissiveTextureIndex >= 0) {
+            let texDesc = textureDescriptors[material.emissiveTextureIndex];
+            emissiveFactor = textureLookup(texDesc, uv.x, uv.y, &textures);
+        }
+        bsdf = emissiveColor * emissiveFactor;
+        // bsdf = evalEmissive(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, emissiveColor, emissiveFactor); // TODO: Fix
 
         attenuation = bsdf;
-    } else if (matType == 1u) { // Lambertian
-        scattered = scatterLambertian(index, pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t, dirIn, intersect.surfaceNormal);
-        bsdf = evalLambertian(dirIn, scattered.ray.direction, intersect.surfaceNormal, material.color);
-        pdf = pdfLambertian(dirIn, scattered.ray.direction, intersect.surfaceNormal);
 
-        attenuation = bsdf / pdf;
-    } else if (matType == 2u) { // Metal
-        scattered = scatterMetal(index, pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t, intersect.surfaceNormal, dirIn, material.params[2]);
-        bsdf = evalMetal(dirIn, scattered.ray.direction, intersect.surfaceNormal, material.color);
+        pathSegment.remainingBounces = -1;
+        pathSegment.color *= attenuation;
+        return;
+    } else if (material.matType == 1) { // Lambertian
+        scattered = scatterLambertian(index, hitPoint, dirIn, normal);
+        bsdf = evalLambertian(dirIn, scattered.ray.direction, normal, baseColor);
+        pdf = pdfLambertian(dirIn, scattered.ray.direction, normal);
+
+        if (pdf == 0.0) {
+            attenuation = vec3f(1.0);
+            pathSegment.color = baseColor;
+        } else {
+            attenuation = bsdf / pdf;
+        }
+    } else if (material.matType == 2) { // Metal
+        scattered = scatterMetal(index, hitPoint, dirIn, normal, material.roughnessFactor);
+        // bsdf = evalMetal(dirIn, scattered.ray.direction, normal, baseColor, material.metallicFactor); // TODO: add metallic
+        bsdf = evalMetal(dirIn, scattered.ray.direction, normal, baseColor);
 
         attenuation = bsdf;
     }
@@ -162,14 +200,14 @@ fn scatterRay(index: u32) {
 
     pathSegment.color *= attenuation;
 
-    if (pathSegment.remainingBounces < 0 && matType != 0u) {
-        // did not reach a light till max depth, terminate path as invalid
-        pathSegment.color = vec3f(0.0);
-    }
+    // if (pathSegment.remainingBounces < 0 && material.matType != 0) {
+    //     // did not reach a light till max depth, terminate path as invalid
+    //     pathSegment.color = vec3f(0.0);
+    // }
 
     // store path prefix for next iteration
     pathSegment.pathPrefix = intersect.objectId;
-    pathSegment.appliedStyleType = u32(material.params.w);
+    pathSegment.appliedStyleType = material.styleType;
 }
 
 @compute

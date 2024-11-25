@@ -1,0 +1,225 @@
+{
+    "asset": {
+        "version": "2.0",
+        "generator": "Open Asset Import Library (assimp v5.4.0)"
+    },
+    "extensionsUsed": [
+        "KHR_materials_volume",
+        "FB_ngon_encoding"
+    ],
+    "accessors": [
+        {
+            "bufferView": 0,
+            "byteOffset": 0,
+            "componentType": 5126,
+            "count": 17358,
+            "type": "VEC3",
+            "max": [
+                0.668556272983551,
+                0.8799268007278442,
+                0.9919244050979614
+            ],
+            "min": [
+                -0.6679636240005493,
+                -0.9085731506347656,
+                -1.005160927772522
+            ]
+        },
+        {
+            "bufferView": 1,
+            "byteOffset": 0,
+            "componentType": 5126,
+            "count": 17358,
+            "type": "VEC3",
+            "max": [
+                0.9999207258224487,
+                0.999932050704956,
+                0.9999057650566101
+            ],
+            "min": [
+                -0.9999852180480957,
+                -0.9996305704116821,
+                -0.999985933303833
+            ]
+        },
+        {
+            "bufferView": 2,
+            "byteOffset": 0,
+            "componentType": 5126,
+            "count": 17358,
+            "type": "VEC2",
+            "max": [
+                0.9974700212478638,
+                0.9892600178718567
+            ],
+            "min": [
+                0.0019499999471008778,
+                0.0019500255584716797
+            ]
+        },
+        {
+            "bufferView": 3,
+            "byteOffset": 0,
+            "componentType": 5125,
+            "count": 93048,
+            "type": "SCALAR",
+            "max": [
+                17357
+            ],
+            "min": [
+                0
+            ]
+        }
+    ],
+    "buffers": [
+        {
+            "byteLength": 927648,
+            "uri": "skull_textures_0.bin"
+        }
+    ],
+    "bufferViews": [
+        {
+            "buffer": 0,
+            "byteOffset": 0,
+            "byteLength": 208296,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteOffset": 208296,
+            "byteLength": 208296,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteOffset": 416592,
+            "byteLength": 138864,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteOffset": 555456,
+            "byteLength": 372192,
+            "target": 34963
+        }
+    ],
+    "images": [
+        {
+            "uri": "textures/image_0.png"
+        },
+        {
+            "uri": "textures/image_1.png"
+        }
+    ],
+    "materials": [
+        {
+            "name": "defaultMat",
+            "pbrMetallicRoughness": {
+                "baseColorTexture": {
+                    "index": 0
+                },
+                "metallicFactor": 0.0,
+                "roughnessFactor": 0.6000000238418579
+            },
+            "normalTexture": {
+                "index": 1
+            }
+        }
+    ],
+    "meshes": [
+        {
+            "name": "meshes[0]",
+            "primitives": [
+                {
+                    "mode": 4,
+                    "material": 0,
+                    "indices": 3,
+                    "attributes": {
+                        "POSITION": 0,
+                        "NORMAL": 1,
+                        "TEXCOORD_0": 2
+                    }
+                }
+            ]
+        }
+    ],
+    "nodes": [
+        {
+            "name": "skull_textures",
+            "children": [
+                1
+            ]
+        },
+        {
+            "name": "Sketchfab_model",
+            "matrix": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                2.220446049250313e-16,
+                -1.0,
+                0.0,
+                0.0,
+                1.0,
+                2.220446049250313e-16,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0
+            ],
+            "children": [
+                2
+            ],
+            "extras": {
+                "name": "Sketchfab_model"
+            }
+        },
+        {
+            "name": "craneoOBJcleanergles",
+            "children": [
+                3
+            ],
+            "extras": {
+                "name": "craneo.OBJ.cleaner.gles"
+            }
+        },
+        {
+            "name": "Object_2",
+            "mesh": 0,
+            "extras": {
+                "name": "Object_2"
+            }
+        }
+    ],
+    "samplers": [
+        {
+            "magFilter": 9729,
+            "minFilter": 9987
+        },
+        {
+            "magFilter": 9729,
+            "minFilter": 9987
+        }
+    ],
+    "scenes": [
+        {
+            "nodes": [
+                0
+            ]
+        }
+    ],
+    "textures": [
+        {
+            "source": 0,
+            "sampler": 0
+        },
+        {
+            "source": 1,
+            "sampler": 1
+        }
+    ],
+    "scene": 0
+}

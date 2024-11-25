@@ -10,12 +10,38 @@ import { setupLoaders, Scene } from "./stage/scene";
 import { Lights } from "./stage/lights";
 import { Camera } from "./stage/camera";
 import { Stage } from "./stage/stage";
+import { vec3 } from "wgpu-matrix";
 
 await initWebGPU();
 setupLoaders();
 
 let scene = new Scene();
-await scene.loadGltf("./scenes/sponza/Sponza.gltf");
+await scene.loadGltf("./scenes/box/BoxTextured.gltf", vec3.create(1, 1, 1), vec3.create(0, 3, 0), vec3.create(0, 0, 0));
+await scene.loadGltf(
+    "./scenes/small_airplane/small_airplane.gltf",
+    vec3.create(0.5, 0.5, 0.5),
+    vec3.create(0, 0.8, 0),
+    vec3.create(0, (3 * Math.PI) / 8, 0)
+);
+await scene.loadGltf(
+    "./scenes/person/person.gltf",
+    vec3.create(1, 1, 1),
+    vec3.create(-4.5, -0.8, -4),
+    vec3.create(0, -Math.PI / 4, 0)
+);
+await scene.loadGltf(
+    "./scenes/suzanne.gltf",
+    vec3.create(1, 1, 1),
+    vec3.create(0, 1.5, 0),
+    vec3.create(0, -3.1415 / 4, 0)
+);
+// await scene.loadGltf(
+//     "./scenes/skull/skull_textures.gltf",
+//     vec3.create(1, 1, 1),
+//     vec3.create(0, 3, 0),
+//     vec3.create(Math.PI, 0, Math.PI / 2)
+// );
+// await scene.loadGltf("./scenes/sponza/Sponza.gltf"); // too big for storage
 
 const camera = new Camera();
 const lights = new Lights(camera);
