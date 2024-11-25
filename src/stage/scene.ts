@@ -1017,7 +1017,7 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: objectsLength,
+            objectId: -1,
         });
 
         // Floor

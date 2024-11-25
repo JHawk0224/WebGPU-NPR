@@ -1,7 +1,7 @@
 fn shouldStylize(sc : StyleContext) -> u32 
 {
     // sc.params.y = objectId, z = path prefix, w = styleType
-    if ((sc.params.w == 1u && sc.params.y == 1u) || sc.params.w == 2u) {
+    if ((sc.params.w == 1 && sc.params.y == -1) || sc.params.w == 2) {
         // hero model .y = 1
         return 1u;
     }
@@ -23,10 +23,10 @@ fn stylize (sc : StyleContext, samples : vec3f) -> vec3f
         return samples;
     }
 
-    if (sc.params.w == 1u) {
+    if (sc.params.w == 1) {
         // greyscale target models
         return stylizeGreyscale(sc, samples);
-    } else if (sc.params.w == 2u) {
+    } else if (sc.params.w == 2) {
         // greyscale whole scene
         return stylizeGreyscale(sc, samples);
     }
