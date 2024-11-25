@@ -200,10 +200,10 @@ fn scatterRay(index: u32) {
 
     pathSegment.color *= attenuation;
 
-    // if (pathSegment.remainingBounces < 0 && material.matType != 0) {
-    //     // did not reach a light till max depth, terminate path as invalid
-    //     pathSegment.color = vec3f(0.0);
-    // }
+    if (pathSegment.remainingBounces < 0 && material.matType != 0) {
+        // did not reach a light till max depth, terminate path as invalid
+        pathSegment.color = vec3f(0.0);
+    }
 
     // store path prefix for next iteration
     pathSegment.pathPrefix = intersect.objectId;

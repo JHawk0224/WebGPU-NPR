@@ -288,9 +288,6 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, vertices: ptr<storage, V
     if (ret.dist > 0.0) {
         ret.intersectionPoint = (mesh.transform * vec4f(ret.intersectionPoint, 1.0)).xyz;
         ret.normal = normalize((mesh.invTranspose * vec4f(ret.normal, 0.0)).xyz);
-        if (ret.outside == 0u) {
-            ret.normal = -ret.normal;
-        }
         ret.dist = length(r.origin - ret.intersectionPoint);
     } else {
         ret.dist = -1.0;
