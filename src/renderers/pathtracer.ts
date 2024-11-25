@@ -361,6 +361,8 @@ export class Pathtracer extends renderer.Renderer {
     override draw() {
         this.frameCount++;
 
+        let resetAccumulation = this.camera.updated;
+
         // run cloth simulation every 20 frames
         if (this.frameCount % 20 === 0) {
             const encoder = renderer.device.createCommandEncoder();
@@ -373,7 +375,7 @@ export class Pathtracer extends renderer.Renderer {
             computePass.dispatchWorkgroups(Math.ceil(numVertices / workgroupSize));
             computePass.end();
 
-            const vertexSize = 3 * 4;
+            const vertexSize = 3 * 4 * 4;
             const clothVertexCount = this.clothSimulator.clothMesh.positionsArray.length;
             const clothBufferSize = clothVertexCount * vertexSize;
 
@@ -381,7 +383,7 @@ export class Pathtracer extends renderer.Renderer {
             const clothOffset = (sceneVertexCount - clothVertexCount) * vertexSize;
 
             encoder.copyBufferToBuffer(
-                this.clothSimulator.positionBuffer,
+                this.clothSimulator.vertexBuffer,
                 0,
                 this.scene.vertexBuffer!,
                 clothOffset,
@@ -389,6 +391,8 @@ export class Pathtracer extends renderer.Renderer {
             );
 
             renderer.device.queue.submit([encoder.finish()]);
+
+            resetAccumulation = true;
         }
 
         const encoder = renderer.device.createCommandEncoder();
@@ -396,7 +400,7 @@ export class Pathtracer extends renderer.Renderer {
 
         const computePass = encoder.beginComputePass();
 
-        if (this.camera.updated) {
+        if (resetAccumulation) {
             // Reset contents of render textures
             computePass.setPipeline(this.pathtracerComputePipelineClearTexture);
             computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);

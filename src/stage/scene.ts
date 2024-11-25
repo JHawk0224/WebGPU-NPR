@@ -1149,90 +1149,90 @@ export class Scene {
             objectId: objectsLength + 5,
         });
 
-        // Left Mirror greyscale
-        scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        rotateMat4 = mat4.create(
-            0.7071,
-            0.0,
-            0.7071,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            -0.7071,
-            0.0,
-            0.7071,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0
-        ); // 45 degrees
-        translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -2.6, 0.0, 0.0, 0.0, 1.0);
-        transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
-        this.geomDataArray.push({
-            transform: transformMat4,
-            inverseTransform: mat4.inverse(transformMat4),
-            invTranspose: mat4.transpose(mat4.inverse(transformMat4)),
-            geomType: 0,
-            materialId: materialsLength + 6,
-            triangleCount: 0,
-            triangleStartIdx: -1,
-            bvhRootNodeIdx: -1,
-            objectId: objectsLength + 6,
-        });
+        // // Left Mirror greyscale
+        // scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+        // rotateMat4 = mat4.create(
+        //     0.7071,
+        //     0.0,
+        //     0.7071,
+        //     0.0,
+        //     0.0,
+        //     1.0,
+        //     0.0,
+        //     0.0,
+        //     -0.7071,
+        //     0.0,
+        //     0.7071,
+        //     0.0,
+        //     0.0,
+        //     0.0,
+        //     0.0,
+        //     1.0
+        // ); // 45 degrees
+        // translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -2.6, 0.0, 0.0, 0.0, 1.0);
+        // transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+        // this.geomDataArray.push({
+        //     transform: transformMat4,
+        //     inverseTransform: mat4.inverse(transformMat4),
+        //     invTranspose: mat4.transpose(mat4.inverse(transformMat4)),
+        //     geomType: 0,
+        //     materialId: materialsLength + 6,
+        //     triangleCount: 0,
+        //     triangleStartIdx: -1,
+        //     bvhRootNodeIdx: -1,
+        //     objectId: objectsLength + 6,
+        // });
 
-        // Middle Mirror regular
-        scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        rotateMat4 = identityMat4;
-        translateMat4 = mat4.create(1.0, 0.0, 0.0, 5.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
-        this.geomDataArray.push({
-            transform: transformMat4,
-            inverseTransform: mat4.inverse(transformMat4),
-            invTranspose: mat4.transpose(mat4.inverse(transformMat4)),
-            geomType: 0,
-            materialId: materialsLength + 5,
-            triangleCount: 0,
-            triangleStartIdx: -1,
-            bvhRootNodeIdx: -1,
-            objectId: objectsLength + 7,
-        });
+        // // Middle Mirror regular
+        // scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+        // rotateMat4 = identityMat4;
+        // translateMat4 = mat4.create(1.0, 0.0, 0.0, 5.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+        // transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+        // this.geomDataArray.push({
+        //     transform: transformMat4,
+        //     inverseTransform: mat4.inverse(transformMat4),
+        //     invTranspose: mat4.transpose(mat4.inverse(transformMat4)),
+        //     geomType: 0,
+        //     materialId: materialsLength + 5,
+        //     triangleCount: 0,
+        //     triangleStartIdx: -1,
+        //     bvhRootNodeIdx: -1,
+        //     objectId: objectsLength + 7,
+        // });
 
-        // Right Mirror
-        scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        rotateMat4 = mat4.create(
-            0.7071,
-            0.0,
-            0.7071,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            -0.7071,
-            0.0,
-            0.7071,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0
-        ); // 45 degrees
-        translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.6, 0.0, 0.0, 0.0, 1.0);
-        transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
-        this.geomDataArray.push({
-            transform: transformMat4,
-            inverseTransform: mat4.inverse(transformMat4),
-            invTranspose: mat4.transpose(mat4.inverse(transformMat4)),
-            geomType: 0,
-            materialId: materialsLength + 7,
-            triangleCount: 0,
-            triangleStartIdx: -1,
-            bvhRootNodeIdx: -1,
-            objectId: objectsLength + 8,
-        });
+        // // Right Mirror
+        // scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+        // rotateMat4 = mat4.create(
+        //     0.7071,
+        //     0.0,
+        //     0.7071,
+        //     0.0,
+        //     0.0,
+        //     1.0,
+        //     0.0,
+        //     0.0,
+        //     -0.7071,
+        //     0.0,
+        //     0.7071,
+        //     0.0,
+        //     0.0,
+        //     0.0,
+        //     0.0,
+        //     1.0
+        // ); // 45 degrees
+        // translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.6, 0.0, 0.0, 0.0, 1.0);
+        // transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
+        // this.geomDataArray.push({
+        //     transform: transformMat4,
+        //     inverseTransform: mat4.inverse(transformMat4),
+        //     invTranspose: mat4.transpose(mat4.inverse(transformMat4)),
+        //     geomType: 0,
+        //     materialId: materialsLength + 7,
+        //     triangleCount: 0,
+        //     triangleStartIdx: -1,
+        //     bvhRootNodeIdx: -1,
+        //     objectId: objectsLength + 8,
+        // });
 
         this.totalVertexCount = this.vertexDataArray.length;
         this.totalTriangleCount = this.triangleDataArray.length;

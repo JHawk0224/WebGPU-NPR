@@ -30,7 +30,7 @@ export class ClothMesh {
         // Generate vertices
         for (let y = 0; y <= this.segmentsY; y++) {
             for (let x = 0; x <= this.segmentsX; x++) {
-                const position = vec3.create(x * dx - this.width / 2, 0, y * dy - this.height / 2);
+                const position = vec3.create(x * dx - this.width / 2, 1, y * dy - this.height / 2);
                 const uv = vec2.create(x / this.segmentsX, y / this.segmentsY);
                 this.positionsArray.push({ position, normal: vec3.create(0, 1, 0), uv });
                 this.previousPositionsArray.push(position);
@@ -64,7 +64,7 @@ export class ClothMesh {
 export class ClothSimulator {
     clothMesh: ClothMesh;
 
-    positionBuffer!: GPUBuffer;
+    vertexBuffer!: GPUBuffer;
     previousPositionBuffer!: GPUBuffer;
     velocityBuffer!: GPUBuffer;
     uniformBuffer!: GPUBuffer;
@@ -97,14 +97,14 @@ export class ClothSimulator {
 
         const bufferSize = positionData.byteLength;
 
-        this.positionBuffer = renderer.device.createBuffer({
+        this.vertexBuffer = renderer.device.createBuffer({
             label: "cloth position buffer",
             size: bufferSize,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC,
             mappedAtCreation: true,
         });
-        new Float32Array(this.positionBuffer.getMappedRange()).set(positionData);
-        this.positionBuffer.unmap();
+        new Float32Array(this.vertexBuffer.getMappedRange()).set(positionData);
+        this.vertexBuffer.unmap();
 
         this.previousPositionBuffer = renderer.device.createBuffer({
             label: "cloth previous position buffer",
@@ -179,7 +179,7 @@ export class ClothSimulator {
             label: "cloth simulation bind group",
             layout: this.bindGroupLayout,
             entries: [
-                { binding: 0, resource: { buffer: this.positionBuffer } },
+                { binding: 0, resource: { buffer: this.vertexBuffer } },
                 { binding: 1, resource: { buffer: this.previousPositionBuffer } },
                 { binding: 2, resource: { buffer: this.velocityBuffer } },
                 { binding: 3, resource: { buffer: this.uniformBuffer } },
