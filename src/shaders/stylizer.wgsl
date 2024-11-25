@@ -16,7 +16,7 @@ fn shouldStylize(sc : StyleContext) -> u32
 // full implementation should have an array of samples (array<vec3f, 32u>)
 // however, for demonstration we will only use perfect mirrors, meaning only 
 // one path is ever valid, so we only need one vec3f
-fn style(sc : StyleContext, samples : vec3f) -> vec3f
+fn stylize (sc : StyleContext, samples : vec3f) -> vec3f
 {
     if (shouldStylize(sc) == 0u) {
         // Identity style
@@ -25,17 +25,17 @@ fn style(sc : StyleContext, samples : vec3f) -> vec3f
 
     if (sc.params.w == 1u) {
         // greyscale target models
-        return styleGreyscale(sc, samples);
+        return stylizeGreyscale(sc, samples);
     } else if (sc.params.w == 2u) {
         // greyscale whole scene
-        return styleGreyscale(sc, samples);
+        return stylizeGreyscale(sc, samples);
     }
 
     // undefined, apply identity stylization
     return samples;
 }
 
-fn styleGreyscale(sc : StyleContext, samples : vec3f) -> vec3f 
+fn stylizeGreyscale(sc : StyleContext, samples : vec3f) -> vec3f 
 {
     // NTSC formula: 0.299 * Red + 0.587 * Green + 0.114 * Blue
     var combined = 0.299 * samples.x + 0.587 * samples.y + 0.114 * samples.z;

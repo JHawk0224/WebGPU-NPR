@@ -196,7 +196,7 @@ fn scatterRay(index: u32) {
     sc.position = scattered.ray.origin;
     sc.normal = intersect.surfaceNormal;
 
-    attenuation = style(sc, attenuation);
+    attenuation = stylize(sc, attenuation);
 
     pathSegment.color *= attenuation;
 

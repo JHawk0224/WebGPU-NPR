@@ -48,7 +48,8 @@ fn scatterMetal(index: u32, intersect: vec3f, dirIn: vec3f, normal: vec3f, mRoug
     // i.e. we importance sample a point on a unit sphere 
     // (uniformly w.r.t. surface area), scale it by roughness, 
     // and tweak ray direction by this offset
-    var reflected = reflect(normalize(dirIn), normal);
+    let dirInFlipped = vec3f(dirIn.x, -dirIn.y, -dirIn.z);
+    var reflected = reflect(normalize(dirInFlipped), normal);
     reflected += randomOnUnitSphere() * mRoughness;
     reflected = normalize(reflected);
 
