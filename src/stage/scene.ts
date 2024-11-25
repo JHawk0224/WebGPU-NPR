@@ -1129,9 +1129,8 @@ export class Scene {
 
         // Left Mirror greyscale
         scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        rotateMat4 = mat4.create(0.7071, 0.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0, -0.5, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
-        // rotateMat4 = mat4.create(0.866, 0.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0, -0.5, 0.0, 0.866, 0.0, 0.0, 0.0, 0.0, 1.0); // 30 degrees
-        translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -3.6, 0.0, 0.0, 0.0, 1.0);
+        rotateMat4 = mat4.create(0.7071, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
+        translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -2.6, 0.0, 0.0, 0.0, 1.0);
         transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
         this.geomDataArray.push({
             transform: transformMat4,
@@ -1146,7 +1145,7 @@ export class Scene {
         });
 
         // Middle Mirror regular
-        scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+        scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0);
         rotateMat4 = identityMat4;
         translateMat4 = mat4.create(1.0, 0.0, 0.0, 5.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
         transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
@@ -1162,10 +1161,10 @@ export class Scene {
             objectId: 8,
         });
 
-        // // Right Mirror
+        // Right Mirror
         scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        rotateMat4 = mat4.create(0.5, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
-        translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 3.6, 0.0, 0.0, 0.0, 1.0);
+        rotateMat4 = mat4.create(0.7071, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
+        translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.6, 0.0, 0.0, 0.0, 1.0);
         transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
         this.geomDataArray.push({
             transform: transformMat4,
