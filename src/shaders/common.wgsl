@@ -138,6 +138,7 @@ struct CameraUniforms {
     proj : mat4x4f,
     projInv : mat4x4f,
     front : vec3<f32>,
+    numFrames : u32,
     up : vec3<f32>,
     right : vec3<f32>,
     depth : f32,

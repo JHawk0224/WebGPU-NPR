@@ -5,6 +5,7 @@ import { device, canvas, fovYDegrees, aspectRatio } from "../renderer";
 class CameraUniforms {
     readonly buffer = new ArrayBuffer(368);
     private readonly floatView = new Float32Array(this.buffer);
+    private readonly uintView = new Uint32Array(this.buffer);
 
     set viewProjMat(mat: Float32Array) {
         for (let i = 0; i < 16; i++) {
@@ -34,6 +35,10 @@ class CameraUniforms {
         for (let i = 0; i < 3; i++) {
             this.floatView[i + 64] = front[i];
         }
+    }
+
+    set numFrames(numFrames: u32) {
+        this.uintView[67] = numFrames;
     }
 
     set up(up: Vec3) {
@@ -111,6 +116,7 @@ export class Camera {
     rayDepth: number = 8;
     samples: number = 1;
     randCounter: number = 0;
+    updated: boolean = true;
 
     keys: { [key: string]: boolean } = {};
 
@@ -177,6 +183,7 @@ export class Camera {
     private onMouseMove(event: MouseEvent) {
         if (document.pointerLockElement === canvas) {
             this.rotateCamera(event.movementX * this.sensitivity, event.movementY * this.sensitivity);
+            this.updated = true;
         }
     }
 
@@ -213,6 +220,7 @@ export class Camera {
         if (vec3.length(moveDir) > 0) {
             const moveAmount = vec3.scale(vec3.normalize(moveDir), moveSpeed);
             this.cameraPos = vec3.add(this.cameraPos, moveAmount);
+            this.updated = true;
         }
     }
 
@@ -240,6 +248,11 @@ export class Camera {
     updateCameraUniformsCounter() {
         this.randCounter += 1;
         this.uniforms.counter = this.randCounter;
+        device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
+    }
+
+    updateCameraUniformsNumFrames(numFrames: number) {
+        this.uniforms.numFrames = numFrames;
         device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
     }
 }
