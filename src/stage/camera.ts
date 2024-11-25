@@ -154,7 +154,7 @@ export class Camera {
     }
 
     private rotateCamera(dx: number, dy: number) {
-        this.yaw += dx;
+        this.yaw -= dx;
         this.pitch -= dy;
 
         if (this.pitch > 89) {
@@ -189,10 +189,10 @@ export class Camera {
             moveDir = vec3.sub(moveDir, this.cameraFront);
         }
         if (this.keys["a"]) {
-            moveDir = vec3.sub(moveDir, this.cameraRight);
+            moveDir = vec3.add(moveDir, this.cameraRight);
         }
         if (this.keys["d"]) {
-            moveDir = vec3.add(moveDir, this.cameraRight);
+            moveDir = vec3.sub(moveDir, this.cameraRight);
         }
         if (this.keys["q"]) {
             moveDir = vec3.sub(moveDir, this.cameraUp);
