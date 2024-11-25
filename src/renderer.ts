@@ -1,5 +1,4 @@
 import { Scene } from "./stage/scene";
-import { Lights } from "./stage/lights";
 import { Camera } from "./stage/camera";
 import { Stage } from "./stage/stage";
 
@@ -125,7 +124,6 @@ export const vertexBufferLayout: GPUVertexBufferLayout = {
 
 export abstract class Renderer {
     protected scene: Scene;
-    protected lights: Lights;
     protected camera: Camera;
 
     protected stats: Stats;
@@ -151,7 +149,6 @@ export abstract class Renderer {
 
     constructor(stage: Stage) {
         this.scene = stage.scene;
-        this.lights = stage.lights;
         this.camera = stage.camera;
         this.stats = stage.stats;
 
