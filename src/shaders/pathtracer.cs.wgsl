@@ -235,7 +235,7 @@ fn finalGather(@builtin(global_invocation_id) globalIdx: vec3u) {
         let pathSegment = &pathSegments.segments[index];
 
         let accumulated = textureLoad(inputTex, globalIdx.xy, 0).xyz;
-        let resultColor = vec4(1.0 / f32(cameraUniforms.numSamples) * pathSegment.color + accumulated, 1);
+        let resultColor = vec4((pathSegment.color + accumulated * f32(cameraUniforms.numFrames)) / f32(cameraUniforms.numFrames + 1), 1);
         textureStore(outputTex, globalIdx.xy, resultColor);
     }
 }
