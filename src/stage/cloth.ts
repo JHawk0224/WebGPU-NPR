@@ -100,7 +100,7 @@ export class ClothSimulator {
         this.positionBuffer = renderer.device.createBuffer({
             label: "cloth position buffer",
             size: bufferSize,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC,
             mappedAtCreation: true,
         });
         new Float32Array(this.positionBuffer.getMappedRange()).set(positionData);
@@ -109,7 +109,7 @@ export class ClothSimulator {
         this.previousPositionBuffer = renderer.device.createBuffer({
             label: "cloth previous position buffer",
             size: bufferSize,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
             mappedAtCreation: true,
         });
         new Float32Array(this.previousPositionBuffer.getMappedRange()).set(previousPositionData);
@@ -118,7 +118,7 @@ export class ClothSimulator {
         this.velocityBuffer = renderer.device.createBuffer({
             label: "cloth velocity buffer",
             size: bufferSize,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
             mappedAtCreation: true,
         });
         new Float32Array(this.velocityBuffer.getMappedRange()).set(velocityData);
