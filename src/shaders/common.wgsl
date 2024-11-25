@@ -186,4 +186,93 @@ struct TextureDescriptor {
     width: u32,
     height: u32,
     offset: u32,
+    wrapS: u32,
+    wrapT: u32,
+    minFilter: u32,
+    magFilter: u32
+};
+
+struct Textures {
+    textures: array<array<f32, 4>>
+}
+
+// Wrap modes
+const WRAP_MODE_REPEAT: u32 = 0u;
+const WRAP_MODE_CLAMP_TO_EDGE: u32 = 1u;
+const WRAP_MODE_MIRRORED_REPEAT: u32 = 2u;
+
+// Filter modes
+const FILTER_NEAREST: u32 = 0u;
+const FILTER_LINEAR: u32 = 1u;
+
+fn applyWrapMode(coord: f32, wrapMode: u32) -> f32 {
+    if (wrapMode == WRAP_MODE_REPEAT) {
+        return coord - floor(coord);
+    } else if (wrapMode == WRAP_MODE_CLAMP_TO_EDGE) {
+        return clamp(coord, 0.0, 1.0);
+    } else if (wrapMode == WRAP_MODE_MIRRORED_REPEAT) {
+        let fracPart = fract(coord);
+        let floored = floor(coord);
+        let floored_u32 = u32(floored);
+        let isEven = (floored_u32 % 2u) == 0u;
+        return select(1.0 - fracPart, fracPart, isEven);
+    }
+    return coord - floor(coord); // default to repeat
+}
+
+fn sampleTexture(desc: TextureDescriptor, u: f32, v: f32, textures: ptr<storage, Textures, read>) -> vec3<f32> {
+    if (desc.minFilter == FILTER_NEAREST && desc.magFilter == FILTER_NEAREST) {
+        return textureNearest(desc, u, v, textures);
+    } else if (desc.minFilter == FILTER_LINEAR && desc.magFilter == FILTER_LINEAR) {
+        return textureBilinear(desc, u, v, textures);
+    }
+    return textureNearest(desc, u, v, textures); // default to nearest
+}
+
+fn textureNearest(desc: TextureDescriptor, u: f32, v: f32, textures: ptr<storage, Textures, read>) -> vec3<f32> {
+    let i = u32(round(v));
+    let j = u32(round(u));
+    let idx = i * desc.width + j;
+
+    let elem = textures.textures[desc.offset + idx];
+    return vec3f(elem[0u], elem[1u], elem[2u]);
+}
+
+fn textureBilinear(desc: TextureDescriptor, u: f32, v: f32, textures: ptr<storage, Textures, read>) -> vec3<f32> {
+    let i0 = u32(floor(v));
+    let j0 = u32(floor(u));
+    let i1 = min(i0 + 1u, desc.height - 1u);
+    let j1 = min(j0 + 1u, desc.width - 1u);
+
+    let u_ratio = fract(u);
+    let v_ratio = fract(v);
+
+    let idx00 = i0 * desc.width + j0;
+    let idx10 = i0 * desc.width + j1;
+    let idx01 = i1 * desc.width + j0;
+    let idx11 = i1 * desc.width + j1;
+
+    let tex00 = textures.textures[desc.offset + idx00];
+    let tex10 = textures.textures[desc.offset + idx10];
+    let tex01 = textures.textures[desc.offset + idx01];
+    let tex11 = textures.textures[desc.offset + idx11];
+
+    let color00 = vec3f(tex00[0u], tex00[1u], tex00[2u]);
+    let color10 = vec3f(tex10[0u], tex10[1u], tex10[2u]);
+    let color01 = vec3f(tex01[0u], tex01[1u], tex01[2u]);
+    let color11 = vec3f(tex11[0u], tex11[1u], tex11[2u]);
+
+    let color0 = mix(color00, color10, u_ratio);
+    let color1 = mix(color01, color11, u_ratio);
+    return mix(color0, color1, v_ratio);
+}
+
+fn textureLookup(desc: TextureDescriptor, u_orig: f32, v_orig: f32, textures: ptr<storage, Textures, read>) -> vec3<f32> {
+    let u_wrapped = applyWrapMode(u_orig, desc.wrapS);
+    let v_wrapped = applyWrapMode(v_orig, desc.wrapT);
+
+    let u = u_wrapped * f32(desc.width - 1u);
+    let v = (1.0 - v_wrapped) * f32(desc.height - 1u);
+
+    return sampleTexture(desc, u, v, textures);
 }

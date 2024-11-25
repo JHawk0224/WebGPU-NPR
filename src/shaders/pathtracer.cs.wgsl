@@ -15,7 +15,7 @@
 // TextureDescriptor contains offset into texture buffer, and dimensions
 @group(${bindGroup_textures}) @binding(1) var<storage, read> textureDescriptors: array<TextureDescriptor>;
 // Texture buffer contains textures from all meshes, appended end to end
-@group(${bindGroup_textures}) @binding(2) var<storage, read> textures: array<array<f32, 4>>;
+@group(${bindGroup_textures}) @binding(2) var<storage, read> textures: Textures;
 
 // RNG code from https://github.com/webgpu/webgpu-samples/blob/main/sample/cornell/common.wgsl
 // A psuedo random number. Initialized with init_rand(), updated with rand().
@@ -37,19 +37,6 @@ fn rand() -> f32 {
 
   rnd = (rnd * C) ^ (rnd.yzx >> vec3(4u));
   return f32(rnd.x ^ rnd.y) / f32(0xffffffff);
-}
-
-
-fn textureLookup(desc: TextureDescriptor, u_orig: f32, v_orig: f32) -> vec3<f32> {
-    let u = clamp(u_orig, 0f, 1f);
-    let v = 1 - clamp(v_orig, 0f, 1f);
-
-    let j = u32(u * f32(desc.width));
-    let i = u32(v * f32(desc.height));
-    let idx = i * desc.width + j;
-
-    let elem = textures[desc.offset + idx];
-    return vec3f(elem[0u], elem[1u], elem[2u]);
 }
 
 @compute
@@ -165,7 +152,7 @@ fn scatterRay(index: u32) {
     var baseColor = material.baseColorFactor.rgb;
     if (material.baseColorTextureIndex >= 0) {
         let texDesc = textureDescriptors[material.baseColorTextureIndex];
-        baseColor *= textureLookup(texDesc, uv.x, uv.y);
+        baseColor *= textureLookup(texDesc, uv.x, uv.y, &textures);
     }
 
     if (material.matType == 0) { // Emissive
@@ -173,7 +160,7 @@ fn scatterRay(index: u32) {
         var emissiveFactor = vec3f(1.0);
         if (material.emissiveTextureIndex >= 0) {
             let texDesc = textureDescriptors[material.emissiveTextureIndex];
-            emissiveFactor = textureLookup(texDesc, uv.x, uv.y);
+            emissiveFactor = textureLookup(texDesc, uv.x, uv.y, &textures);
         }
         bsdf = emissiveColor * emissiveFactor;
         // bsdf = evalEmissive(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, emissiveColor, emissiveFactor); // TODO: Fix

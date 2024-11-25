@@ -16,13 +16,12 @@ await initWebGPU();
 setupLoaders();
 
 let scene = new Scene();
-// await scene.loadGltf("./scenes/box/BoxTextured.gltf");
-// await scene.loadGltf(
-//     "./scenes/skull/skull_textures.gltf",
-//     vec3.create(1, 1, 1),
-//     vec3.create(0, 3, 0),
-//     vec3.create(Math.PI, 0, Math.PI / 2)
-// );
+await scene.loadGltf(
+    "./scenes/box/BoxTextured.gltf",
+    vec3.create(1.5, 1.5, 1.5),
+    vec3.create(0, 4, -2),
+    vec3.create(0, 0, 0)
+);
 await scene.loadGltf(
     "./scenes/small_airplane/small_airplane.gltf",
     vec3.create(1, 1, 1),
@@ -41,6 +40,12 @@ await scene.loadGltf(
     vec3.create(0, 1.5, 0),
     vec3.create(0, -3.1415 / 4, 0)
 );
+// await scene.loadGltf(
+//     "./scenes/skull/skull_textures.gltf",
+//     vec3.create(1, 1, 1),
+//     vec3.create(0, 3, 0),
+//     vec3.create(Math.PI, 0, Math.PI / 2)
+// );
 // await scene.loadGltf("./scenes/sponza/Sponza.gltf"); // too big for storage
 
 const camera = new Camera();

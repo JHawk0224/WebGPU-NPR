@@ -41,6 +41,10 @@ export interface TextureDescriptor {
     width: number;
     height: number;
     offset: number;
+    wrapS: number; // Wrap mode for U coordinate
+    wrapT: number; // Wrap mode for V coordinate
+    minFilter: number; // Minification filter
+    magFilter: number; // Magnification filter
 }
 
 export interface MaterialData {
@@ -59,6 +63,39 @@ export interface BVHNodeData {
     rightChild: number;
     triangleStart: number;
     triangleCount: number;
+}
+
+// Wrap modes
+const WRAP_MODE_REPEAT = 0;
+const WRAP_MODE_CLAMP_TO_EDGE = 1;
+const WRAP_MODE_MIRRORED_REPEAT = 2;
+
+// Filter modes
+const FILTER_NEAREST = 0;
+const FILTER_LINEAR = 1;
+
+function mapWrapMode(glWrapMode: number): number {
+    switch (glWrapMode) {
+        case 0x2901: // REPEAT
+            return WRAP_MODE_REPEAT;
+        case 0x812f: // CLAMP_TO_EDGE
+            return WRAP_MODE_CLAMP_TO_EDGE;
+        case 0x8370: // MIRRORED_REPEAT
+            return WRAP_MODE_MIRRORED_REPEAT;
+        default:
+            return WRAP_MODE_REPEAT;
+    }
+}
+
+function mapFilterMode(glFilterMode: number): number {
+    switch (glFilterMode) {
+        case 0x2600: // NEAREST
+            return FILTER_NEAREST;
+        case 0x2601: // LINEAR
+            return FILTER_LINEAR;
+        default:
+            return FILTER_LINEAR;
+    }
 }
 
 function getFloatArray(gltfWithBuffers: GLTFWithBuffers, accessorIndex: number): Float32Array | null {
@@ -212,7 +249,7 @@ async function getPixelDataFromGltfImage(
     if (gltfImage.image) {
         imageBitmap = gltfImage.image;
     } else if (gltfImage.uri) {
-        if (basePath.length == 0) {
+        if (basePath.length === 0) {
             basePath = "./";
         } else if (basePath[basePath.length - 1] !== "/") {
             basePath = basePath.slice(0, basePath.lastIndexOf("/") + 1);
@@ -283,6 +320,7 @@ export class Scene {
         const nodes = gltf.nodes || [];
         const scenes = gltf.scenes || [];
         const existingTextureCount = this.textureDescriptors.length;
+        const existingMaterialCount = this.materialDataArray.length;
 
         // Load textures into buffers
         for (const gltfTexture of textures) {
@@ -292,10 +330,28 @@ export class Scene {
             const { data: floatData, width, height } = await getPixelDataFromGltfImage(gltfImage, filePath);
             this.textureDataArrays.push(floatData);
 
+            const samplerIndex = gltfTexture.sampler;
+            let wrapS = 0x2901; // Default to REPEAT
+            let wrapT = 0x2901; // Default to REPEAT
+            let minFilter = 0x2601; // Default to LINEAR
+            let magFilter = 0x2601; // Default to LINEAR
+
+            if (samplerIndex !== undefined && gltf.samplers) {
+                const sampler = gltf.samplers[samplerIndex];
+                wrapS = sampler.wrapS ?? wrapS;
+                wrapT = sampler.wrapT ?? wrapT;
+                minFilter = sampler.minFilter ?? minFilter;
+                magFilter = sampler.magFilter ?? magFilter;
+            }
+
             const descriptor: TextureDescriptor = {
                 width: width,
                 height: height,
                 offset: this.currentTextureOffset,
+                wrapS: mapWrapMode(wrapS),
+                wrapT: mapWrapMode(wrapT),
+                minFilter: mapFilterMode(minFilter),
+                magFilter: mapFilterMode(magFilter),
             };
             this.textureDescriptors.push(descriptor);
 
@@ -439,7 +495,7 @@ export class Scene {
                             v0: indices[idx + 0],
                             v1: indices[idx + 1],
                             v2: indices[idx + 2],
-                            materialId: materialIndex,
+                            materialId: materialIndex === -1 ? -1 : materialIndex + existingMaterialCount,
                         });
                     }
 
@@ -543,7 +599,7 @@ export class Scene {
     createBuffersAndBindGroup = () => {
         // For debugging BVH
         // for (const node of this.bvhNodesArray) {
-        //     if (node.leftChild == -1 && node.rightChild == -1) {
+        //     if (node.leftChild === -1 && node.rightChild === -1) {
         //         const diff = vec3.subtract(node.boundsMax, node.boundsMin);
         //         const scaleMat = mat4.scaling(diff);
         //         const center = vec3.add(node.boundsMin, vec3.mulScalar(diff, 0.5));
@@ -739,14 +795,18 @@ export class Scene {
         textureDataBuffer.unmap();
 
         // Texture Descriptors Buffer
-        const descriptorsData = new Uint32Array(this.textureDescriptors.length * 4);
+        const descriptorsData = new Uint32Array(this.textureDescriptors.length * 8);
         for (let i = 0; i < this.textureDescriptors.length; i++) {
             const desc = this.textureDescriptors[i];
-            const offset = i * 4;
+            const offset = i * 8;
             descriptorsData[offset + 0] = desc.width;
             descriptorsData[offset + 1] = desc.height;
             descriptorsData[offset + 2] = desc.offset;
-            descriptorsData[offset + 3] = 0;
+            descriptorsData[offset + 3] = desc.wrapS;
+            descriptorsData[offset + 4] = desc.wrapT;
+            descriptorsData[offset + 5] = desc.minFilter;
+            descriptorsData[offset + 6] = desc.magFilter;
+            descriptorsData[offset + 7] = 0;
         }
 
         const descriptorsBuffer = device.createBuffer({
