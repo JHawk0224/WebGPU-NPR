@@ -54,7 +54,7 @@ struct Geom
     triangleCount : u32,
     triangleStartIdx : i32,
     bvhRootNodeIdx : i32,
-    objectId : i32
+    objectId : u32
 };
 
 struct Geoms {

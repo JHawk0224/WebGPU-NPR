@@ -104,7 +104,7 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
             // The ray hits something
             intersections.intersections[index].t = closestHit.dist;
             intersections.intersections[index].materialId = closestHit.materialId;
-            intersections.intersections[index].objectId = u32(geoms.geoms[hitGeomIndex].objectId);
+            intersections.intersections[index].objectId = geoms.geoms[hitGeomIndex].objectId;
             intersections.intersections[index].surfaceNormal = closestHit.normal;
             intersections.intersections[index].uv = closestHit.uv;
         }

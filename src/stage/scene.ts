@@ -1,10 +1,3 @@
-/*
-Note that this glTF loader assumes a lot of things are always defined (textures, samplers, vertex/index info, etc.),
-so you may run into issues loading files outside of the Sponza scene.
-
-In particular, it is known to not work if there is a mesh with no material.
-*/
-
 import { registerLoaders, load } from "@loaders.gl/core";
 import { GLTFLoader, GLTFWithBuffers } from "@loaders.gl/gltf";
 import { ImageLoader } from "@loaders.gl/images";
@@ -22,7 +15,7 @@ export interface GeomData {
     triangleCount: number;
     triangleStartIdx: number;
     bvhRootNodeIdx: number;
-    objectId?: number;
+    objectId: number;
 }
 
 export interface VertexData {
@@ -514,6 +507,7 @@ export class Scene {
                     triangleCount: meshTriangleCount,
                     triangleStartIdx: meshTriangleStartIdx,
                     bvhRootNodeIdx: -1,
+                    objectId: this.geomDataArray.length,
                 };
 
                 // Build BVH for this mesh (if disabled, still do box around all triangles)
@@ -672,7 +666,7 @@ export class Scene {
             offset += 4;
             geomDataView.setInt32(offset, geomData.bvhRootNodeIdx, true);
             offset += 4;
-            geomDataView.setInt32(offset, geomData.objectId ?? -1, true);
+            geomDataView.setUint32(offset, geomData.objectId, true);
             offset += 12;
         }
 
@@ -914,6 +908,7 @@ export class Scene {
         // }
 
         const materialsLength = this.materialDataArray.length;
+        const objectsLength = this.geomDataArray.length;
 
         // white lambertian
         this.materialDataArray.push({
@@ -1011,7 +1006,7 @@ export class Scene {
             styleType: 2,
         });
 
-        // // A cube
+        // A cube
         const identityMat4 = mat4.identity();
         this.geomDataArray.push({
             transform: identityMat4,
@@ -1022,10 +1017,10 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: 1,
+            objectId: objectsLength,
         });
 
-        // // Floor
+        // Floor
         let scaleMat4 = mat4.create(10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0);
         let rotateMat4 = identityMat4;
         let translateMat4 = mat4.create(
@@ -1056,7 +1051,7 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: 2,
+            objectId: objectsLength + 1,
         });
 
         // Top light
@@ -1073,7 +1068,7 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: 3,
+            objectId: objectsLength + 2,
         });
 
         // Back Wall
@@ -1090,7 +1085,7 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: 4,
+            objectId: objectsLength + 3,
         });
 
         // Left Wall
@@ -1107,7 +1102,7 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: 5,
+            objectId: objectsLength + 4,
         });
 
         // Right Wall
@@ -1124,12 +1119,29 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: 6,
+            objectId: objectsLength + 5,
         });
 
         // Left Mirror greyscale
         scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        rotateMat4 = mat4.create(0.7071, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
+        rotateMat4 = mat4.create(
+            0.7071,
+            0.0,
+            0.7071,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.7071,
+            0.0,
+            0.7071,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+        ); // 45 degrees
         translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -2.6, 0.0, 0.0, 0.0, 1.0);
         transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
         this.geomDataArray.push({
@@ -1141,7 +1153,7 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: 7,
+            objectId: objectsLength + 6,
         });
 
         // Middle Mirror regular
@@ -1158,12 +1170,29 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: 8,
+            objectId: objectsLength + 7,
         });
 
         // Right Mirror
         scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        rotateMat4 = mat4.create(0.7071, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
+        rotateMat4 = mat4.create(
+            0.7071,
+            0.0,
+            0.7071,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.7071,
+            0.0,
+            0.7071,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+        ); // 45 degrees
         translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.6, 0.0, 0.0, 0.0, 1.0);
         transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
         this.geomDataArray.push({
@@ -1175,7 +1204,7 @@ export class Scene {
             triangleCount: 0,
             triangleStartIdx: -1,
             bvhRootNodeIdx: -1,
-            objectId: 9,
+            objectId: objectsLength + 8,
         });
     };
 }
