@@ -804,7 +804,7 @@ export class Scene {
         descriptorsBuffer.unmap();
 
         const dummyBuffer = device.createBuffer({
-            size: 48,
+            size: 64,
             usage: GPUBufferUsage.STORAGE,
             mappedAtCreation: true,
         });
@@ -866,10 +866,10 @@ export class Scene {
         });
 
         const geometryBindGroupEntries: GPUBindGroupEntry[] = [
-            { binding: 0, resource: { buffer: vertexBuffer } },
-            { binding: 1, resource: { buffer: triangleBuffer } },
-            { binding: 2, resource: { buffer: geomBuffer } },
-            { binding: 3, resource: { buffer: bvhBuffer } },
+            { binding: 0, resource: { buffer: totalVertexData.byteLength > 0 ? vertexBuffer : dummyBuffer } },
+            { binding: 1, resource: { buffer: triangleHostBuffer.byteLength > 0 ? triangleBuffer : dummyBuffer } },
+            { binding: 2, resource: { buffer: geomHostBuffer.byteLength > 16 ? geomBuffer : dummyBuffer } },
+            { binding: 3, resource: { buffer: bvhNodesBuffer.byteLength > 16 ? bvhBuffer : dummyBuffer } },
         ];
         const textureBindGroupEntries: GPUBindGroupEntry[] = [
             { binding: 0, resource: { buffer: materialHostBuffer.byteLength > 0 ? materialBuffer : dummyBuffer } },
