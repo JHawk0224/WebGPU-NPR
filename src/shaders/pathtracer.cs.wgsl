@@ -17,32 +17,14 @@
 // Texture buffer contains textures from all meshes, appended end to end
 @group(${bindGroup_textures}) @binding(2) var<storage, read> textures: Textures;
 
-// RNG code from https://github.com/webgpu/webgpu-samples/blob/main/sample/cornell/common.wgsl
-// A psuedo random number. Initialized with init_rand(), updated with rand().
-var<private> rnd : vec3u;
-
-// Initializes the random number generator.
-fn init_rand(invocation_id : vec3u) {
-  const A = vec3(1741651 * 1009,
-                 140893  * 1609 * 13,
-                 6521    * 983  * 7 * 2);
-  rnd = (invocation_id * A) ^ cameraUniforms.seed;
-}
-
-// Returns a random number between 0 and 1.
-fn rand() -> f32 {
-  const C = vec3(60493  * 9377,
-                 11279  * 2539 * 23,
-                 7919   * 631  * 5 * 3);
-
-  rnd = (rnd * C) ^ (rnd.yzx >> vec3(4u));
-  return f32(rnd.x ^ rnd.y) / f32(0xffffffff);
-}
-
 @compute
 @workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
 fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
     if (globalIdx.x < u32(cameraUniforms.resolution[0]) && globalIdx.y < u32(cameraUniforms.resolution[1])) {
+
+        let gIdx = shiftIndex(globalIdx, cameraUniforms.counter);
+        init_rand(gIdx, cameraUniforms.seed);
+
         let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
 
         let segment = &pathSegments.segments[index];
@@ -62,6 +44,8 @@ fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
         segment.color = vec3f(1.0);
         segment.pixelIndex = i32(index);
         segment.remainingBounces = i32(cameraUniforms.depth);
+        segment.pathPrefix = 0u;
+        segment.appliedStyleType = 0u;
     }
 }
 
@@ -69,6 +53,10 @@ fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
 @workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
 fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
     if (globalIdx.x < u32(cameraUniforms.resolution[0]) && globalIdx.y < u32(cameraUniforms.resolution[1])) {
+
+        let gIdx = shiftIndex(globalIdx, cameraUniforms.counter);
+        init_rand(gIdx, cameraUniforms.seed);
+
         let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
 
         let pathSegment = &pathSegments.segments[index];
@@ -116,6 +104,7 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
             // The ray hits something
             intersections.intersections[index].t = closestHit.dist;
             intersections.intersections[index].materialId = closestHit.materialId;
+            intersections.intersections[index].objectId = u32(geoms.geoms[hitGeomIndex].objectId);
             intersections.intersections[index].surfaceNormal = closestHit.normal;
             intersections.intersections[index].uv = closestHit.uv;
         }
@@ -128,7 +117,7 @@ fn scatterRay(index: u32) {
 
     if (intersect.t < 0.0) {
         // let color = vec3f(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
-        let color = vec3f(0.3);
+        let color = vec3f(0.0);
         pathSegment.color *= color;
         pathSegment.remainingBounces = -2;
         return;
@@ -145,7 +134,7 @@ fn scatterRay(index: u32) {
     // hopefully we can template if we have time later on
     let dirIn = normalize(-pathSegment.ray.direction);
 
-    let hitPoint = pathSegment.ray.origin + pathSegment.ray.direction * intersect.t;
+    let hitPoint = pathSegment.ray.origin + normalize(pathSegment.ray.direction) * intersect.t;
     let normal = intersect.surfaceNormal;
     let uv = intersect.uv;
 
@@ -171,7 +160,7 @@ fn scatterRay(index: u32) {
         pathSegment.color *= attenuation;
         return;
     } else if (material.matType == 1) { // Lambertian
-        scattered = scatterLambertian(index, hitPoint, normal);
+        scattered = scatterLambertian(index, hitPoint, dirIn, normal);
         bsdf = evalLambertian(dirIn, scattered.ray.direction, normal, baseColor);
         pdf = pdfLambertian(dirIn, scattered.ray.direction, normal);
 
@@ -182,7 +171,7 @@ fn scatterRay(index: u32) {
             attenuation = bsdf / pdf;
         }
     } else if (material.matType == 2) { // Metal
-        scattered = scatterMetal(index, hitPoint, normal, material.roughnessFactor);
+        scattered = scatterMetal(index, hitPoint, dirIn, normal, material.roughnessFactor);
         // bsdf = evalMetal(dirIn, scattered.ray.direction, normal, baseColor, material.metallicFactor); // TODO: add metallic
         bsdf = evalMetal(dirIn, scattered.ray.direction, normal, baseColor);
 
@@ -197,14 +186,28 @@ fn scatterRay(index: u32) {
         pathSegment.remainingBounces = -1;
         return;
     }
+    
+    // materialId, objectId, path prefix, 
+    // params : vec4<f32>,
+    // position : vec3<f32>,
+    // normal : vec3<f32>,
+    var sc : StyleContext;
+    sc.params = vec4u(u32(intersect.materialId), intersect.objectId, pathSegment.pathPrefix, pathSegment.appliedStyleType);
+    sc.position = scattered.ray.origin;
+    sc.normal = intersect.surfaceNormal;
+
+    attenuation = style(sc, attenuation);
 
     pathSegment.color *= attenuation;
 
-    // if (pathSegment.remainingBounces < 0 && material.matType != 0) { // TODO: Add back
+    // if (pathSegment.remainingBounces < 0 && material.matType != 0) {
     //     // did not reach a light till max depth, terminate path as invalid
     //     pathSegment.color = vec3f(0.0);
-    //     return;
     // }
+
+    // store path prefix for next iteration
+    pathSegment.pathPrefix = intersect.objectId;
+    pathSegment.appliedStyleType = material.styleType;
 }
 
 @compute
@@ -215,16 +218,34 @@ fn integrate(@builtin(global_invocation_id) globalIdx: vec3u) {
 
         let pathSegment = &pathSegments.segments[index];
 
-        if (pathSegment.remainingBounces < 0) {
-            return;
-        }
+        if (pathSegment.remainingBounces >= 0) {
+            let gIdx = shiftIndex(globalIdx, cameraUniforms.counter);
+            init_rand(gIdx, cameraUniforms.seed);
 
-        scatterRay(index);
-
-        if (cameraUniforms.depth == 0) {
-            let accumulated = textureLoad(inputTex, globalIdx.xy, 0).xyz;
-            let resultColor = vec4(1.0 / f32(cameraUniforms.numSamples) * pathSegment.color + accumulated, 1);
-            textureStore(outputTex, globalIdx.xy, resultColor);
+            scatterRay(index);
         }
+    }
+}
+
+@compute
+@workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
+fn finalGather(@builtin(global_invocation_id) globalIdx: vec3u) {
+    if (globalIdx.x < u32(cameraUniforms.resolution[0]) && globalIdx.y < u32(cameraUniforms.resolution[1])) {
+        let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
+        let pathSegment = &pathSegments.segments[index];
+
+        let accumulated = textureLoad(inputTex, globalIdx.xy, 0).xyz;
+        let resultColor = vec4(1.0 / f32(cameraUniforms.numSamples) * pathSegment.color + accumulated, 1);
+        textureStore(outputTex, globalIdx.xy, resultColor);
+    }
+}
+
+@compute
+@workgroup_size(${workgroupSizeX}, ${workgroupSizeY})
+fn clearTexture(@builtin(global_invocation_id) globalIdx: vec3u) {
+    if (globalIdx.x < u32(cameraUniforms.resolution[0]) && globalIdx.y < u32(cameraUniforms.resolution[1])) {
+        let index = globalIdx.x + (globalIdx.y * u32(cameraUniforms.resolution[0]));
+
+        textureStore(outputTex, globalIdx.xy, vec4(0.0));
     }
 }

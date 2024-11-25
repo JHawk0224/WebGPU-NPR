@@ -85,6 +85,10 @@ class CameraUniforms {
             this.floatView[i + 88] = seed[i];
         }
     }
+
+    set counter(counter: u32) {
+        this.floatView[91] = counter;
+    }
 }
 
 export class Camera {
@@ -106,6 +110,7 @@ export class Camera {
 
     rayDepth: number = 8;
     samples: number = 1;
+    randCounter: number = 0;
 
     keys: { [key: string]: boolean } = {};
 
@@ -123,6 +128,7 @@ export class Camera {
         this.uniforms.resolution = vec2.create(canvas.width, canvas.height);
         this.uniforms.depth = this.rayDepth;
         this.uniforms.numSamples = this.samples;
+        this.uniforms.counter = this.randCounter;
 
         let yscaled = Math.tan(fovYDegrees * (Math.PI / 180));
         let xscaled = (yscaled * canvas.width) / canvas.height;
@@ -231,10 +237,9 @@ export class Camera {
         device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
     }
 
-    updateDepth(depth: number) {
-        this.rayDepth = depth;
-        this.uniforms.depth = this.rayDepth;
-
+    updateCameraUniformsCounter() {
+        this.randCounter += 1;
+        this.uniforms.counter = this.randCounter;
         device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
     }
 }

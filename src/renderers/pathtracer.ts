@@ -16,6 +16,8 @@ export class Pathtracer extends renderer.Renderer {
 
     pathtracerTempRenderTexture1: GPUTexture;
     pathtracerTempRenderTexture2: GPUTexture;
+    pathtracerTempRenderTexture1View: GPUTextureView;
+    pathtracerTempRenderTexture2View: GPUTextureView;
 
     pathtracerGeometryBindGroup: GPUBindGroup;
     pathtracerGeometryBindGroupLayout: GPUBindGroupLayout;
@@ -28,6 +30,8 @@ export class Pathtracer extends renderer.Renderer {
     pathtracerComputePipelineGenerateRay: GPUComputePipeline;
     pathtracerComputePipelineComputeIntersections: GPUComputePipeline;
     pathtracerComputePipelineIntegrate: GPUComputePipeline;
+    pathtracerComputePipelineFinalGather: GPUComputePipeline;
+    pathtracerComputePipelineClearTexture: GPUComputePipeline;
 
     renderTextureBindGroupLayout: GPUBindGroupLayout;
     renderTextureBindGroupTemp1: GPUBindGroup;
@@ -117,12 +121,16 @@ export class Pathtracer extends renderer.Renderer {
             usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
         });
 
+        this.scene.addCustomObjects();
         const { geometryBindGroup, geometryBindGroupLayout, textureBindGroup, textureBindGroupLayout } =
             this.scene.createBuffersAndBindGroup();
         this.pathtracerGeometryBindGroup = geometryBindGroup;
         this.pathtracerGeometryBindGroupLayout = geometryBindGroupLayout;
         this.pathtracerTextureBindGroup = textureBindGroup;
         this.pathtracerTextureBindGroupLayout = textureBindGroupLayout;
+
+        this.pathtracerTempRenderTexture1View = this.pathtracerTempRenderTexture1.createView();
+        this.pathtracerTempRenderTexture2View = this.pathtracerTempRenderTexture2.createView();
 
         this.pathtracerComputeBindGroupLayout = renderer.device.createBindGroupLayout({
             label: "pathtracer temp compute bind group layout",
@@ -160,11 +168,11 @@ export class Pathtracer extends renderer.Renderer {
             entries: [
                 {
                     binding: 0,
-                    resource: this.pathtracerTempRenderTexture1.createView(),
+                    resource: this.pathtracerTempRenderTexture1View,
                 },
                 {
                     binding: 1,
-                    resource: this.pathtracerTempRenderTexture2.createView(),
+                    resource: this.pathtracerTempRenderTexture2View,
                 },
                 {
                     binding: 2,
@@ -183,11 +191,11 @@ export class Pathtracer extends renderer.Renderer {
             entries: [
                 {
                     binding: 0,
-                    resource: this.pathtracerTempRenderTexture2.createView(),
+                    resource: this.pathtracerTempRenderTexture2View,
                 },
                 {
                     binding: 1,
-                    resource: this.pathtracerTempRenderTexture1.createView(),
+                    resource: this.pathtracerTempRenderTexture1View,
                 },
                 {
                     binding: 2,
@@ -253,6 +261,36 @@ export class Pathtracer extends renderer.Renderer {
             },
         });
 
+        this.pathtracerComputePipelineFinalGather = renderer.device.createComputePipeline({
+            label: "pathtracer compute pipeline final gather",
+            layout: renderer.device.createPipelineLayout({
+                label: "pathtracer compute pipeline layout final gather",
+                bindGroupLayouts: [this.sceneUniformsBindGroupLayout, this.pathtracerComputeBindGroupLayout],
+            }),
+            compute: {
+                module: renderer.device.createShaderModule({
+                    label: "pathtracer compute shader",
+                    code: shaders.pathtracerComputeSrc,
+                }),
+                entryPoint: "finalGather",
+            },
+        });
+
+        this.pathtracerComputePipelineClearTexture = renderer.device.createComputePipeline({
+            label: "pathtracer compute pipeline clear texture",
+            layout: renderer.device.createPipelineLayout({
+                label: "pathtracer compute pipeline layout clear texture",
+                bindGroupLayouts: [this.sceneUniformsBindGroupLayout, this.pathtracerComputeBindGroupLayout],
+            }),
+            compute: {
+                module: renderer.device.createShaderModule({
+                    label: "pathtracer compute shader",
+                    code: shaders.pathtracerComputeSrc,
+                }),
+                entryPoint: "clearTexture",
+            },
+        });
+
         // Pathtracer render pipeline
         this.renderTextureBindGroupLayout = renderer.device.createBindGroupLayout({
             label: "render texture bind group layout",
@@ -272,7 +310,7 @@ export class Pathtracer extends renderer.Renderer {
             entries: [
                 {
                     binding: 0,
-                    resource: this.pathtracerTempRenderTexture1.createView(),
+                    resource: this.pathtracerTempRenderTexture1View,
                 },
             ],
         });
@@ -283,7 +321,7 @@ export class Pathtracer extends renderer.Renderer {
             entries: [
                 {
                     binding: 0,
-                    resource: this.pathtracerTempRenderTexture2.createView(),
+                    resource: this.pathtracerTempRenderTexture2View,
                 },
             ],
         });
@@ -323,10 +361,26 @@ export class Pathtracer extends renderer.Renderer {
         const encoder = renderer.device.createCommandEncoder();
         const canvasTextureView = renderer.context.getCurrentTexture().createView();
 
-        for (let s = 0; s < this.camera.samples; s++) {
-            const computePass = encoder.beginComputePass();
+        const computePass = encoder.beginComputePass();
 
+        // Reset contents of render textures
+        computePass.setPipeline(this.pathtracerComputePipelineClearTexture);
+        computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+        computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
+        computePass.dispatchWorkgroups(
+            Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
+            Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
+        );
+
+        computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp2);
+        computePass.dispatchWorkgroups(
+            Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
+            Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
+        );
+
+        for (let s = 1; s <= this.camera.samples; s++) {
             // Generate camera rays
+            this.camera.updateCameraUniformsCounter();
             computePass.setPipeline(this.pathtracerComputePipelineGenerateRay);
             computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
             computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
@@ -336,72 +390,46 @@ export class Pathtracer extends renderer.Renderer {
             );
 
             for (let d = this.camera.rayDepth; d >= 0; d--) {
-                this.camera.updateDepth(d);
+                // Compute ray-scene intersections
+                this.camera.updateCameraUniformsCounter();
+                computePass.setPipeline(this.pathtracerComputePipelineComputeIntersections);
+                computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+                computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
+                computePass.setBindGroup(shaders.constants.bindGroup_geometry, this.pathtracerGeometryBindGroup);
+                computePass.dispatchWorkgroups(
+                    Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
+                    Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
+                );
 
-                if (s % 2 == 0) {
-                    // Compute ray-scene intersections
-                    computePass.setPipeline(this.pathtracerComputePipelineComputeIntersections);
-                    computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
-                    computePass.setBindGroup(
-                        shaders.constants.bindGroup_pathtracer,
-                        this.pathtracerComputeBindGroupTemp1
-                    );
-                    computePass.setBindGroup(shaders.constants.bindGroup_geometry, this.pathtracerGeometryBindGroup);
-                    computePass.dispatchWorkgroups(
-                        Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
-                        Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
-                    );
+                // Sort rays by materials
 
-                    // Sort rays by materials
+                // Evaluate the integral and shade materials
+                this.camera.updateCameraUniformsCounter();
+                computePass.setPipeline(this.pathtracerComputePipelineIntegrate);
+                computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+                computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
+                computePass.setBindGroup(shaders.constants.bindGroup_textures, this.pathtracerTextureBindGroup);
+                computePass.dispatchWorkgroups(
+                    Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
+                    Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
+                );
 
-                    // Evaluate the integral and shade materials
-                    computePass.setPipeline(this.pathtracerComputePipelineIntegrate);
-                    computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
-                    computePass.setBindGroup(
-                        shaders.constants.bindGroup_pathtracer,
-                        this.pathtracerComputeBindGroupTemp1
-                    );
-                    computePass.setBindGroup(shaders.constants.bindGroup_textures, this.pathtracerTextureBindGroup);
-                    computePass.dispatchWorkgroups(
-                        Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
-                        Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
-                    );
-
-                    // Stream compaction
-                } else {
-                    // Compute ray-scene intersections
-                    computePass.setPipeline(this.pathtracerComputePipelineComputeIntersections);
-                    computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
-                    computePass.setBindGroup(
-                        shaders.constants.bindGroup_pathtracer,
-                        this.pathtracerComputeBindGroupTemp2
-                    );
-                    computePass.setBindGroup(shaders.constants.bindGroup_geometry, this.pathtracerGeometryBindGroup);
-                    computePass.dispatchWorkgroups(
-                        Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
-                        Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
-                    );
-
-                    // Sort rays by materials
-
-                    // Evaluate the integral and shade materials
-                    computePass.setPipeline(this.pathtracerComputePipelineIntegrate);
-                    computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
-                    computePass.setBindGroup(
-                        shaders.constants.bindGroup_pathtracer,
-                        this.pathtracerComputeBindGroupTemp2
-                    );
-                    computePass.setBindGroup(shaders.constants.bindGroup_textures, this.pathtracerTextureBindGroup);
-                    computePass.dispatchWorkgroups(
-                        Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
-                        Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
-                    );
-
-                    // Stream compaction
-                }
+                // Stream compaction
             }
-            computePass.end();
+
+            computePass.setPipeline(this.pathtracerComputePipelineFinalGather);
+            computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+            if (s % 2 == 0) {
+                computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
+            } else {
+                computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp2);
+            }
+            computePass.dispatchWorkgroups(
+                Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
+                Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
+            );
         }
+        computePass.end();
 
         const renderPass = encoder.beginRenderPass({
             label: "pathtracer render pass",
@@ -424,9 +452,9 @@ export class Pathtracer extends renderer.Renderer {
         renderPass.setPipeline(this.pipeline);
         renderPass.setVertexBuffer(0, this.emptyBuffer);
         if (this.camera.samples % 2 == 0) {
-            renderPass.setBindGroup(0, this.renderTextureBindGroupTemp2);
-        } else {
             renderPass.setBindGroup(0, this.renderTextureBindGroupTemp1);
+        } else {
+            renderPass.setBindGroup(0, this.renderTextureBindGroupTemp2);
         }
         renderPass.draw(6);
         renderPass.end();

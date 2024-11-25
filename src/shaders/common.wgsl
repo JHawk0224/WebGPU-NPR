@@ -33,7 +33,9 @@ struct PathSegment
     ray : Ray,
     color : vec3f,
     pixelIndex : i32,
-    remainingBounces : i32
+    remainingBounces : i32,
+    pathPrefix : u32,
+    appliedStyleType : u32,
 }
 
 struct PathSegments
@@ -51,7 +53,8 @@ struct Geom
     materialId : i32,
     triangleCount : u32,
     triangleStartIdx : i32,
-    bvhRootNodeIdx : i32
+    bvhRootNodeIdx : i32,
+    objectId : i32
 };
 
 struct Geoms {
@@ -102,6 +105,7 @@ struct Material {
     baseColorTextureIndex: i32,  // index into textureDescriptors
     emissiveTextureIndex: i32,   // index into textureDescriptors
     matType: i32,                // material type (0: Emissive, 1: Lambertian, 2: Metal)
+    styleType: u32
 };
 
 struct Intersection
@@ -109,7 +113,8 @@ struct Intersection
     surfaceNormal : vec3<f32>,
     t : f32,
     uv : vec2<f32>,
-    materialId : i32 // materialId == -1 means no intersection
+    materialId : i32, // materialId == -1 means no intersection
+    objectId : u32
 };
 
 struct Intersections
@@ -141,7 +146,16 @@ struct CameraUniforms {
     pixelLength : vec2<f32>,
     cameraPos : vec3<f32>,
     numSamples : f32,
-    seed : vec3u
+    seed : vec3u,
+    counter : u32,
+}
+
+struct StyleContext {
+    // materialId, objectId, path prefix, styleType
+    // currently just look at last path vertex's objectId
+    params : vec4<u32>,
+    position : vec3<f32>,
+    normal : vec3<f32>,
 }
 
 // this special attenuation function ensures lights don't affect geometry outside the maximum light radius
@@ -275,4 +289,54 @@ fn textureLookup(desc: TextureDescriptor, u_orig: f32, v_orig: f32, textures: pt
     let v = (1.0 - v_wrapped) * f32(desc.height - 1u);
 
     return sampleTexture(desc, u, v, textures);
+}
+
+// RNG code from https://github.com/webgpu/webgpu-samples/blob/main/sample/cornell/common.wgsl#L93
+// A psuedo random number. Initialized with init_rand(), updated with rand().
+var<private> rnd : vec3u;
+
+// Initializes the random number generator.
+fn init_rand(invocation_id : vec3u, seed : vec3u) {
+  const A = vec3(1741651 * 1009,
+                 140893  * 1609 * 13,
+                 6521    * 983  * 7 * 2);
+  rnd = (invocation_id * A) ^ seed;
+}
+
+// Returns a random number between 0 and 1.
+fn rand() -> f32 {
+  const C = vec3(60493  * 9377,
+                 11279  * 2539 * 23,
+                 7919   * 631  * 5 * 3);
+
+  rnd = (rnd * C) ^ (rnd.yzx >> vec3(4u));
+  return f32(rnd.x ^ rnd.y) / f32(0xffffffff);
+}
+
+fn shiftIndex(invocation_id : vec3u, counter : u32) -> vec3u {
+    var ret : vec3u;
+
+    var x = invocation_id.x;
+    x += counter;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+
+    var y = invocation_id.y;
+    y += counter;
+    y ^= y << 13;
+    y ^= y >> 17;
+    y ^= y << 5;
+    
+    var z = invocation_id.z;
+    z += counter;
+    z ^= z << 13;
+    z ^= z >> 17;
+    z ^= z << 5;
+
+    ret.x = x;
+    ret.y = y;
+    ret.z = z;
+
+    return ret;
 }

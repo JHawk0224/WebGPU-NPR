@@ -4,6 +4,7 @@ import commonRaw from "./common.wgsl?raw";
 import intersectionRaw from "./intersection.wgsl?raw";
 import integratorRaw from "./integrator.wgsl?raw";
 import samplerRaw from "./sampler.wgsl?raw";
+import stylizerRaw from "./stylizer.wgsl?raw";
 
 import naiveVertRaw from "./naive.vs.wgsl?raw";
 import naiveFragRaw from "./naive.fs.wgsl?raw";
@@ -62,13 +63,14 @@ const commonSrc: string = evalShaderRaw(commonRaw);
 const intersectionSrc: string = evalShaderRaw(intersectionRaw);
 const integratorSrc: string = evalShaderRaw(integratorRaw);
 const samplerSrc: string = evalShaderRaw(samplerRaw);
+const stylizerSrc: string = evalShaderRaw(stylizerRaw);
 
 function processShaderRaw(raw: string) {
     return commonSrc + intersectionSrc + evalShaderRaw(raw);
 }
 
 function processShaderRawPT(raw: string) {
-    return commonSrc + intersectionSrc + integratorSrc + samplerSrc + evalShaderRaw(raw);
+    return commonSrc + intersectionSrc + integratorSrc + samplerSrc + stylizerSrc + evalShaderRaw(raw);
 }
 
 export const naiveVertSrc: string = processShaderRaw(naiveVertRaw);
