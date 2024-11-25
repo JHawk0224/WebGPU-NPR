@@ -128,7 +128,10 @@ function getFloatArray(gltfWithBuffers: GLTFWithBuffers, accessorIndex: number):
     return new Float32Array(buffer.arrayBuffer, byteOffset, accessor.count * numComponents);
 }
 
-function getIndexArray(gltfWithBuffers: GLTFWithBuffers, accessorIndex: number): Uint16Array | Uint32Array | null {
+function getIndexArray(
+    gltfWithBuffers: GLTFWithBuffers,
+    accessorIndex: number
+): Uint8Array | Uint16Array | Uint32Array | null {
     const gltf = gltfWithBuffers.json;
     const accessor = gltf.accessors?.[accessorIndex];
     if (!accessor) {
@@ -277,6 +280,9 @@ export class Scene {
         const textures = gltf.textures || [];
         const images = gltf.images || [];
         const meshes = gltf.meshes || [];
+        const nodes = gltf.nodes || [];
+        const scenes = gltf.scenes || [];
+        const existingTextureCount = this.textureDescriptors.length;
 
         // Load textures into buffers
         for (const gltfTexture of textures) {
@@ -293,14 +299,14 @@ export class Scene {
             };
             this.textureDescriptors.push(descriptor);
 
-            const numPixels = width * height;
-            this.currentTextureOffset += numPixels;
+            this.currentTextureOffset += width * height;
         }
 
         // Extract material data
         this.materialDataArray.push(
             ...materials.map((material) => {
                 const pbr = material.pbrMetallicRoughness ?? {};
+                const baseColorTextureIndex = pbr.baseColorTexture?.index ?? -1;
                 const emissiveFactor = material.emissiveFactor ?? [0, 0, 0];
                 const emissiveTextureIndex = material.emissiveTexture?.index ?? -1;
 
@@ -311,91 +317,160 @@ export class Scene {
                     matType = 2; // Metal
                 }
 
+                const adjustedBaseColorTextureIndex =
+                    baseColorTextureIndex >= 0 ? baseColorTextureIndex + existingTextureCount : -1;
+
+                const adjustedEmissiveTextureIndex =
+                    emissiveTextureIndex >= 0 ? emissiveTextureIndex + existingTextureCount : -1;
+
                 return {
                     baseColorFactor: pbr.baseColorFactor || [1, 1, 1, 1],
-                    baseColorTextureIndex: pbr.baseColorTexture?.index ?? -1,
+                    baseColorTextureIndex: adjustedBaseColorTextureIndex,
                     metallicFactor: pbr.metallicFactor ?? 1.0,
                     roughnessFactor: pbr.roughnessFactor ?? 1.0,
                     emissiveFactor,
-                    emissiveTextureIndex,
+                    emissiveTextureIndex: adjustedEmissiveTextureIndex,
                     matType,
                 };
             })
         );
 
-        // Create geometry buffers for meshes
-        for (const mesh of meshes) {
-            const meshTriangleStartIdx = this.totalTriangleCount;
-            let meshVertexCount = 0;
-            let meshTriangleCount = 0;
+        const nodeTransforms: Mat4[] = [];
+        for (let i = 0; i < nodes.length; i++) {
+            const gltfNode = nodes[i];
+            let nodeTransform = mat4.identity();
 
-            for (const primitive of mesh.primitives) {
-                if (primitive.indices === undefined) {
-                    console.warn("Primitive has no indices.");
-                    continue;
+            if (gltfNode.matrix) {
+                nodeTransform = new Float32Array(gltfNode.matrix);
+            } else {
+                if (gltfNode.translation) {
+                    nodeTransform = mat4.mul(nodeTransform, mat4.translation(gltfNode.translation));
                 }
-                const indices = getIndexArray(gltfWithBuffers, primitive.indices);
-                const positions = getFloatArray(gltfWithBuffers, primitive.attributes.POSITION);
-                const normals = getFloatArray(gltfWithBuffers, primitive.attributes.NORMAL);
-                const uvs = getFloatArray(gltfWithBuffers, primitive.attributes.TEXCOORD_0);
-                const materialIndex = primitive.material !== undefined ? primitive.material : -1;
-
-                if (!positions || !normals || !uvs || !indices) {
-                    console.warn("Failed to load mesh data.");
-                    continue;
+                if (gltfNode.rotation) {
+                    nodeTransform = mat4.mul(nodeTransform, mat4.fromQuat(gltfNode.rotation));
                 }
-
-                const localVertexCount = positions.length / 3;
-                const vertexOffset = this.vertexDataArray.length;
-                for (let i = 0; i < localVertexCount; i++) {
-                    const position = vec3.create(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
-                    const normal = vec3.create(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
-                    const uv = vec2.create(uvs[i * 2], uvs[i * 2 + 1]);
-                    this.vertexDataArray.push({ position, normal, uv });
+                if (gltfNode.scale) {
+                    nodeTransform = mat4.mul(nodeTransform, mat4.scaling(gltfNode.scale));
                 }
-
-                for (let i = 0; i < indices.length; i++) {
-                    indices[i] += vertexOffset;
-                }
-
-                const primitiveTriangleCount = indices.length / 3;
-                for (let i = 0; i < primitiveTriangleCount; i++) {
-                    const idx = i * 3;
-                    this.triangleDataArray.push({
-                        v0: indices[idx + 0],
-                        v1: indices[idx + 1],
-                        v2: indices[idx + 2],
-                        materialId: materialIndex,
-                    });
-                }
-
-                meshVertexCount += localVertexCount;
-                meshTriangleCount += primitiveTriangleCount;
             }
 
-            const geomData: GeomData = {
-                transform: mat4.identity(),
-                inverseTransform: mat4.identity(),
-                invTranspose: mat4.identity(),
-                geomType: 2,
-                materialId: -1,
-                triangleCount: meshTriangleCount,
-                triangleStartIdx: meshTriangleStartIdx,
-                bvhRootNodeIdx: -1,
-            };
+            nodeTransforms[i] = nodeTransform;
+        }
 
-            // Build BVH for this mesh (if disabled, still do box around all triangles)
-            geomData.bvhRootNodeIdx = this.buildBVH(
-                this.triangleDataArray,
-                meshTriangleStartIdx,
-                meshTriangleStartIdx + meshTriangleCount,
-                this.bvhNodesArray,
-                enableBVH
-            );
+        const worldTransforms: Mat4[] = [];
+        const computeWorldTransform = (nodeIndex: number, parentTransform: Mat4) => {
+            const localTransform = nodeTransforms[nodeIndex];
+            const worldTransform = mat4.mul(parentTransform, localTransform);
+            worldTransforms[nodeIndex] = worldTransform;
 
-            this.geomDataArray.push(geomData);
-            this.totalVertexCount += meshVertexCount;
-            this.totalTriangleCount += meshTriangleCount;
+            const gltfNode = nodes[nodeIndex];
+            for (const childIndex of gltfNode.children ?? []) {
+                computeWorldTransform(childIndex, worldTransform);
+            }
+        };
+
+        const scaleMat = mat4.scaling(scale);
+        const translateMat = mat4.translation(translation);
+        const rotateX = mat4.rotationX(rotation[0]);
+        const rotateY = mat4.rotationY(rotation[1]);
+        const rotateZ = mat4.rotationZ(rotation[2]);
+        const rotateMat = mat4.mul(rotateZ, mat4.mul(rotateY, rotateX));
+        const rootTransform = mat4.mul(translateMat, mat4.mul(rotateMat, scaleMat));
+
+        for (const scene of scenes) {
+            for (const nodeIndex of scene.nodes ?? []) {
+                computeWorldTransform(nodeIndex, rootTransform);
+            }
+        }
+
+        for (let nodeIdx = 0; nodeIdx < nodes.length; nodeIdx++) {
+            const gltfNode = nodes[nodeIdx];
+            if (gltfNode.mesh !== undefined) {
+                const mesh = meshes[gltfNode.mesh];
+                const worldTransform = worldTransforms[nodeIdx];
+                const inverseTransform = mat4.inverse(worldTransform);
+                const invTranspose = mat4.transpose(inverseTransform);
+
+                const meshTriangleStartIdx = this.totalTriangleCount;
+                let meshVertexCount = 0;
+                let meshTriangleCount = 0;
+
+                for (const primitive of mesh.primitives) {
+                    if (primitive.indices === undefined) {
+                        console.warn("Primitive has no indices.");
+                        continue;
+                    }
+                    const indices = getIndexArray(gltfWithBuffers, primitive.indices);
+                    const positions = getFloatArray(gltfWithBuffers, primitive.attributes.POSITION);
+                    const normals = getFloatArray(gltfWithBuffers, primitive.attributes.NORMAL);
+                    let uvs = getFloatArray(gltfWithBuffers, primitive.attributes.TEXCOORD_0);
+                    const materialIndex = primitive.material !== undefined ? primitive.material : -1;
+
+                    if (!positions || !normals || !indices) {
+                        console.warn("Failed to load mesh data.");
+                        continue;
+                    }
+
+                    if (!uvs) {
+                        uvs = new Float32Array((positions.length / 3) * 2);
+                    }
+
+                    const localVertexCount = positions.length / 3;
+                    const vertexOffset = this.vertexDataArray.length;
+                    for (let i = 0; i < localVertexCount; i++) {
+                        const position = vec3.create(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+                        const transformedPosition = vec3.transformMat4(position, worldTransform);
+
+                        const normal = vec3.create(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+                        const transformedNormal = vec3.transformMat4Upper3x3(normal, invTranspose);
+
+                        const uv = vec2.create(uvs[i * 2], uvs[i * 2 + 1]);
+                        this.vertexDataArray.push({ position: transformedPosition, normal: transformedNormal, uv });
+                    }
+
+                    for (let i = 0; i < indices.length; i++) {
+                        indices[i] += vertexOffset;
+                    }
+
+                    const primitiveTriangleCount = indices.length / 3;
+                    for (let i = 0; i < primitiveTriangleCount; i++) {
+                        const idx = i * 3;
+                        this.triangleDataArray.push({
+                            v0: indices[idx + 0],
+                            v1: indices[idx + 1],
+                            v2: indices[idx + 2],
+                            materialId: materialIndex,
+                        });
+                    }
+
+                    meshVertexCount += localVertexCount;
+                    meshTriangleCount += primitiveTriangleCount;
+                }
+
+                const geomData: GeomData = {
+                    transform: worldTransform,
+                    inverseTransform: inverseTransform,
+                    invTranspose: invTranspose,
+                    geomType: 2,
+                    materialId: -1,
+                    triangleCount: meshTriangleCount,
+                    triangleStartIdx: meshTriangleStartIdx,
+                    bvhRootNodeIdx: -1,
+                };
+
+                // Build BVH for this mesh (if disabled, still do box around all triangles)
+                geomData.bvhRootNodeIdx = this.buildBVH(
+                    this.triangleDataArray,
+                    meshTriangleStartIdx,
+                    meshTriangleStartIdx + meshTriangleCount,
+                    this.bvhNodesArray,
+                    enableBVH
+                );
+
+                this.geomDataArray.push(geomData);
+                this.totalVertexCount += meshVertexCount;
+                this.totalTriangleCount += meshTriangleCount;
+            }
         }
     }
 
@@ -432,7 +507,7 @@ export class Scene {
             node.leftChild = -1;
             node.rightChild = -1;
         } else {
-            const extent = vec3.subtract(vec3.create(), node.boundsMax, node.boundsMin);
+            const extent = vec3.subtract(node.boundsMax, node.boundsMin);
             let axis = extent.indexOf(Math.max(...extent));
 
             const trianglesToSort = trianglesArray.slice(start, end);
@@ -455,8 +530,8 @@ export class Scene {
             }
 
             const mid = Math.floor((start + end) / 2);
-            node.leftChild = this.buildBVH(trianglesArray, start, mid, bvhNodes);
-            node.rightChild = this.buildBVH(trianglesArray, mid, end, bvhNodes);
+            node.leftChild = this.buildBVH(trianglesArray, start, mid, bvhNodes, recurse);
+            node.rightChild = this.buildBVH(trianglesArray, mid, end, bvhNodes, recurse);
             node.triangleStart = -1;
             node.triangleCount = 0;
         }
@@ -466,6 +541,27 @@ export class Scene {
     }
 
     createBuffersAndBindGroup = () => {
+        // For debugging BVH
+        // for (const node of this.bvhNodesArray) {
+        //     if (node.leftChild == -1 && node.rightChild == -1) {
+        //         const diff = vec3.subtract(node.boundsMax, node.boundsMin);
+        //         const scaleMat = mat4.scaling(diff);
+        //         const center = vec3.add(node.boundsMin, vec3.mulScalar(diff, 0.5));
+        //         const translationMat = mat4.translation(center);
+        //         var transform = mat4.multiply(translationMat, scaleMat);
+        //         this.geomDataArray.push({
+        //             transform,
+        //             inverseTransform: mat4.inverse(transform),
+        //             invTranspose: mat4.transpose(mat4.inverse(transform)),
+        //             geomType: 0,
+        //             materialId: this.materialDataArray.length - 1,
+        //             triangleCount: 0,
+        //             triangleStartIdx: 0,
+        //             bvhRootNodeIdx: -1,
+        //         });
+        //     }
+        // }
+
         // Vertex Buffer
         const totalVertexData = new Float32Array(this.totalVertexCount * 12);
         let offset = 0;

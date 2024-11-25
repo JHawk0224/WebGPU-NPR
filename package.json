@@ -22,6 +22,6 @@
     "@loaders.gl/images": "^4.2.3",
     "dat.gui": "^0.7.9",
     "stats.js": "^0.17.0",
-    "wgpu-matrix": "^3.0.2"
+    "wgpu-matrix": "^3.3.0"
   }
 }

@@ -1,0 +1,188 @@
+{
+    "asset": {
+        "version": "2.0",
+        "generator": "Open Asset Import Library (assimp v5.4.0)"
+    },
+    "extensionsUsed": [
+        "KHR_materials_volume",
+        "FB_ngon_encoding"
+    ],
+    "accessors": [
+        {
+            "bufferView": 0,
+            "byteOffset": 0,
+            "componentType": 5126,
+            "count": 3064,
+            "type": "VEC3",
+            "max": [
+                0.14224417507648468,
+                0.11300645768642426,
+                0.020134955644607544
+            ],
+            "min": [
+                -0.14224417507648468,
+                -0.4006451666355133,
+                -0.07800450921058655
+            ]
+        },
+        {
+            "bufferView": 1,
+            "byteOffset": 0,
+            "componentType": 5126,
+            "count": 3064,
+            "type": "VEC3",
+            "max": [
+                0.9994797706604004,
+                0.987871527671814,
+                0.9996381998062134
+            ],
+            "min": [
+                -0.9994797706604004,
+                -0.9999783039093018,
+                -0.9935483336448669
+            ]
+        },
+        {
+            "bufferView": 2,
+            "byteOffset": 0,
+            "componentType": 5126,
+            "count": 3064,
+            "type": "VEC2",
+            "max": [
+                1.0,
+                1.0
+            ],
+            "min": [
+                0.0,
+                -1.1920928955078125e-7
+            ]
+        },
+        {
+            "bufferView": 3,
+            "byteOffset": 0,
+            "componentType": 5125,
+            "count": 4524,
+            "type": "SCALAR",
+            "max": [
+                3063
+            ],
+            "min": [
+                0
+            ]
+        }
+    ],
+    "buffers": [
+        {
+            "byteLength": 116144,
+            "uri": "person_0.bin"
+        }
+    ],
+    "bufferViews": [
+        {
+            "buffer": 0,
+            "byteOffset": 0,
+            "byteLength": 36768,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteOffset": 36768,
+            "byteLength": 36768,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteOffset": 73536,
+            "byteLength": 24512,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteOffset": 98048,
+            "byteLength": 18096,
+            "target": 34963
+        }
+    ],
+    "materials": [
+        {
+            "name": "DefaultMaterial",
+            "pbrMetallicRoughness": {
+                "baseColorFactor": [
+                    0.5,
+                    0.5,
+                    0.5,
+                    1.0
+                ],
+                "metallicFactor": 0.20000000298023224,
+                "roughnessFactor": 0.800000011920929
+            }
+        }
+    ],
+    "meshes": [
+        {
+            "name": "meshes[0]",
+            "primitives": [
+                {
+                    "mode": 4,
+                    "material": 0,
+                    "indices": 3,
+                    "attributes": {
+                        "POSITION": 0,
+                        "NORMAL": 1,
+                        "TEXCOORD_0": 2
+                    }
+                }
+            ]
+        }
+    ],
+    "nodes": [
+        {
+            "name": "person",
+            "children": [
+                1
+            ]
+        },
+        {
+            "name": "RootNode",
+            "children": [
+                2
+            ],
+            "extras": {
+                "name": "RootNode"
+            }
+        },
+        {
+            "name": "Plane007",
+            "matrix": [
+                3.720977544784546,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                3.720977544784546,
+                6.062242050575151e-7,
+                0.0,
+                0.0,
+                -6.062242050575151e-7,
+                3.720977544784546,
+                0.0,
+                6.397372722625732,
+                1.4892466068267822,
+                0.19810612499713898,
+                1.0
+            ],
+            "mesh": 0,
+            "extras": {
+                "name": "Plane.007"
+            }
+        }
+    ],
+    "scenes": [
+        {
+            "nodes": [
+                0
+            ]
+        }
+    ],
+    "scene": 0
+}

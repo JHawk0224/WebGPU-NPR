@@ -239,7 +239,7 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, vertices: ptr<storage, V
         }
     } else {
         // BVH enabled
-        var stack: array<u32, 32>;
+        var stack: array<u32, 64>;
         var stackPtr: i32 = 0;
         stack[0] = u32(mesh.bvhRootNodeIdx);
         stackPtr = 1;
