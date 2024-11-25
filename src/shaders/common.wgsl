@@ -34,8 +34,8 @@ struct PathSegment
     color : vec3f,
     pixelIndex : i32,
     remainingBounces : i32,
-    pathPrefix : u32,
-    appliedStyleType : u32,
+    pathPrefix : i32,
+    appliedStyleType : i32,
 }
 
 struct PathSegments
@@ -54,7 +54,7 @@ struct Geom
     triangleCount : u32,
     triangleStartIdx : i32,
     bvhRootNodeIdx : i32,
-    objectId : u32
+    objectId : i32
 };
 
 struct Geoms {
@@ -114,7 +114,7 @@ struct Intersection
     t : f32,
     uv : vec2<f32>,
     materialId : i32, // materialId == -1 means no intersection
-    objectId : u32
+    objectId : i32
 };
 
 struct Intersections
@@ -154,7 +154,7 @@ struct CameraUniforms {
 struct StyleContext {
     // materialId, objectId, path prefix, styleType
     // currently just look at last path vertex's objectId
-    params : vec4<u32>,
+    params : vec4<i32>,
     position : vec3<f32>,
     normal : vec3<f32>,
 }
