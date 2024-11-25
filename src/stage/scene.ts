@@ -4,8 +4,6 @@ import { ImageLoader } from "@loaders.gl/images";
 import { vec2, Vec2, vec3, Vec3, Mat4, mat4 } from "wgpu-matrix";
 import { device } from "../renderer";
 
-const enableBVH = true;
-
 export interface GeomData {
     transform: Mat4;
     inverseTransform: Mat4;
@@ -280,6 +278,8 @@ async function getPixelDataFromGltfImage(
 }
 
 export class Scene {
+    enableBVH: Boolean = true;
+
     vertexDataArray: VertexData[] = [];
     triangleDataArray: TriangleData[] = [];
     geomDataArray: GeomData[] = [];
@@ -516,7 +516,7 @@ export class Scene {
                     meshTriangleStartIdx,
                     meshTriangleStartIdx + meshTriangleCount,
                     this.bvhNodesArray,
-                    enableBVH
+                    this.enableBVH
                 );
 
                 this.geomDataArray.push(geomData);

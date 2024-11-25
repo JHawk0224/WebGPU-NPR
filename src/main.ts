@@ -52,18 +52,29 @@ const stage = new Stage(scene, camera, stats);
 
 var renderer: Renderer | undefined;
 
-function setRenderer(mode: string) {
+const settings = {
+    mode: "pathtracer",
+    enableBVH: true,
+};
+
+function setRenderer(settings: { mode: string; enableBVH: boolean }) {
     renderer?.stop();
 
-    switch (mode) {
-        case renderModes.pathtracer:
-            renderer = new Pathtracer(stage);
-            break;
-    }
+    stage.scene.enableBVH = settings.enableBVH;
+    renderer = new Pathtracer(stage);
 }
 
 const renderModes = { pathtracer: "pathtracer" };
-let renderModeController = gui.add({ mode: renderModes.pathtracer }, "mode", renderModes);
-renderModeController.onChange(setRenderer);
+let renderModeController = gui.add(settings, "mode", renderModes).name("Render Mode");
+renderModeController.onChange((value) => {
+    settings.mode = value;
+    setRenderer(settings);
+});
 
-setRenderer(renderModeController.getValue());
+// const enableBVHController = gui.add(settings, "enableBVH").name("Enable BVH");
+// enableBVHController.onChange((value) => {
+//     settings.enableBVH = value;
+//     setRenderer(settings);
+// });
+
+setRenderer(settings);
