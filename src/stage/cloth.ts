@@ -1,6 +1,7 @@
 import * as shaders from "../shaders/shaders";
 import * as renderer from "../renderer";
-import { vec3, vec2, Vec3, Vec2 } from "wgpu-matrix";
+import { vec3, vec2, Vec3 } from "wgpu-matrix";
+import { VertexData } from "./scene";
 
 export class ClothMesh {
     width: number;
@@ -8,9 +9,7 @@ export class ClothMesh {
     segmentsX: number;
     segmentsY: number;
 
-    positionsArray: Vec3[] = [];
-    normalsArray: Vec3[] = [];
-    uvsArray: Vec2[] = [];
+    positionsArray: VertexData[] = [];
     previousPositionsArray: Vec3[] = [];
     velocitiesArray: Vec3[] = [];
     indices: Uint32Array;
@@ -33,9 +32,7 @@ export class ClothMesh {
             for (let x = 0; x <= this.segmentsX; x++) {
                 const position = vec3.create(x * dx - this.width / 2, 0, y * dy - this.height / 2);
                 const uv = vec2.create(x / this.segmentsX, y / this.segmentsY);
-                this.positionsArray.push(position);
-                this.normalsArray.push(vec3.create(0, 1, 0));
-                this.uvsArray.push(uv);
+                this.positionsArray.push({ position, normal: vec3.create(0, 1, 0), uv });
                 this.previousPositionsArray.push(position);
                 this.velocitiesArray.push(vec3.create(0, 0, 0));
             }
@@ -71,9 +68,6 @@ export class ClothSimulator {
     previousPositionBuffer!: GPUBuffer;
     velocityBuffer!: GPUBuffer;
     uniformBuffer!: GPUBuffer;
-    readbackPositionBuffer!: GPUBuffer;
-    readbackPreviousPositionBuffer!: GPUBuffer;
-    readbackVelocityBuffer!: GPUBuffer;
     indexBuffer!: GPUBuffer;
     bindGroup!: GPUBindGroup;
     bindGroupLayout!: GPUBindGroupLayout;
@@ -89,12 +83,14 @@ export class ClothSimulator {
 
     createBuffers() {
         // Position Buffer
-        const positionData = new Float32Array(this.clothMesh.positionsArray.length * 3);
+        const positionData = new Float32Array(this.clothMesh.positionsArray.length * 12);
         const previousPositionData = new Float32Array(this.clothMesh.previousPositionsArray.length * 3);
         const velocityData = new Float32Array(this.clothMesh.velocitiesArray.length * 3);
 
         for (let i = 0; i < this.clothMesh.positionsArray.length; i++) {
-            positionData.set(this.clothMesh.positionsArray[i], i * 3);
+            positionData.set(this.clothMesh.positionsArray[i].position, i * 4);
+            positionData.set(this.clothMesh.positionsArray[i].normal, i * 4 + 4);
+            positionData.set(this.clothMesh.positionsArray[i].uv, i * 4 + 8);
             previousPositionData.set(this.clothMesh.previousPositionsArray[i], i * 3);
             velocityData.set(this.clothMesh.velocitiesArray[i], i * 3);
         }
@@ -110,12 +106,6 @@ export class ClothSimulator {
         new Float32Array(this.positionBuffer.getMappedRange()).set(positionData);
         this.positionBuffer.unmap();
 
-        this.readbackPositionBuffer = renderer.device.createBuffer({
-            label: "cloth readback position buffer",
-            size: bufferSize,
-            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_SRC,
-        });
-
         this.previousPositionBuffer = renderer.device.createBuffer({
             label: "cloth previous position buffer",
             size: bufferSize,
@@ -125,12 +115,6 @@ export class ClothSimulator {
         new Float32Array(this.previousPositionBuffer.getMappedRange()).set(previousPositionData);
         this.previousPositionBuffer.unmap();
 
-        this.readbackPreviousPositionBuffer = renderer.device.createBuffer({
-            label: "cloth readback previous position buffer",
-            size: bufferSize,
-            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_SRC,
-        });
-
         this.velocityBuffer = renderer.device.createBuffer({
             label: "cloth velocity buffer",
             size: bufferSize,
@@ -139,12 +123,6 @@ export class ClothSimulator {
         });
         new Float32Array(this.velocityBuffer.getMappedRange()).set(velocityData);
         this.velocityBuffer.unmap();
-
-        this.readbackVelocityBuffer = renderer.device.createBuffer({
-            label: "cloth readback velocity buffer",
-            size: bufferSize,
-            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_SRC,
-        });
 
         // Index Buffer
         const indexData = this.clothMesh.indices;
@@ -222,62 +200,5 @@ export class ClothSimulator {
                 entryPoint: "simulateCloth",
             },
         });
-    }
-
-    async simulate() {
-        const encoder = renderer.device.createCommandEncoder();
-
-        const computePass = encoder.beginComputePass();
-        computePass.setPipeline(this.computePipeline);
-        computePass.setBindGroup(0, this.bindGroup);
-        const workgroupSize = 256;
-        const numVertices = this.clothMesh.positionsArray.length;
-        computePass.dispatchWorkgroups(Math.ceil(numVertices / workgroupSize));
-        computePass.end();
-
-        const bufferSize = this.clothMesh.positionsArray.length * 3 * 4;
-        encoder.copyBufferToBuffer(this.positionBuffer, 0, this.readbackPositionBuffer, 0, bufferSize);
-        encoder.copyBufferToBuffer(this.previousPositionBuffer, 0, this.readbackPreviousPositionBuffer, 0, bufferSize);
-        encoder.copyBufferToBuffer(this.velocityBuffer, 0, this.readbackVelocityBuffer, 0, bufferSize);
-
-        renderer.device.queue.submit([encoder.finish()]);
-
-        await renderer.device.queue.onSubmittedWorkDone();
-
-        await this.readbackPositionBuffer.mapAsync(GPUMapMode.READ);
-        const positionArrayBuffer = this.readbackPositionBuffer.getMappedRange();
-        const positionData = new Float32Array(positionArrayBuffer);
-        for (let i = 0; i < positionData.length; i += 3) {
-            this.clothMesh.positionsArray[i / 3] = vec3.create(
-                positionData[i],
-                positionData[i + 1],
-                positionData[i + 2]
-            );
-        }
-        this.readbackPositionBuffer.unmap();
-
-        await this.readbackPreviousPositionBuffer.mapAsync(GPUMapMode.READ);
-        const previousPositionArrayBuffer = this.readbackPreviousPositionBuffer.getMappedRange();
-        const previousPositionData = new Float32Array(previousPositionArrayBuffer);
-        for (let i = 0; i < previousPositionData.length; i += 3) {
-            this.clothMesh.previousPositionsArray[i / 3] = vec3.create(
-                previousPositionData[i],
-                previousPositionData[i + 1],
-                previousPositionData[i + 2]
-            );
-        }
-        this.readbackPreviousPositionBuffer.unmap();
-
-        await this.readbackVelocityBuffer.mapAsync(GPUMapMode.READ);
-        const velocityArrayBuffer = this.readbackVelocityBuffer.getMappedRange();
-        const velocityData = new Float32Array(velocityArrayBuffer);
-        for (let i = 0; i < velocityData.length; i += 3) {
-            this.clothMesh.velocitiesArray[i / 3] = vec3.create(
-                velocityData[i],
-                velocityData[i + 1],
-                velocityData[i + 2]
-            );
-        }
-        this.readbackVelocityBuffer.unmap();
     }
 }

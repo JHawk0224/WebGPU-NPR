@@ -20,11 +20,6 @@ export class Pathtracer extends renderer.Renderer {
     pathtracerTempRenderTexture1View: GPUTextureView;
     pathtracerTempRenderTexture2View: GPUTextureView;
 
-    pathtracerGeometryBindGroup: GPUBindGroup;
-    pathtracerGeometryBindGroupLayout: GPUBindGroupLayout;
-    pathtracerTextureBindGroup: GPUBindGroup;
-    pathtracerTextureBindGroupLayout: GPUBindGroupLayout;
-
     pathtracerComputeBindGroupLayout: GPUBindGroupLayout;
     pathtracerComputeBindGroupTemp1: GPUBindGroup;
     pathtracerComputeBindGroupTemp2: GPUBindGroup;
@@ -128,14 +123,8 @@ export class Pathtracer extends renderer.Renderer {
         this.scene.addCustomObjects();
 
         this.clothSimulator = new ClothSimulator();
-        this.scene.updateGeometryWithCloth(this.clothSimulator.clothMesh, true);
-
-        const { geometryBindGroup, geometryBindGroupLayout, textureBindGroup, textureBindGroupLayout } =
-            this.scene.createBuffersAndBindGroup();
-        this.pathtracerGeometryBindGroup = geometryBindGroup;
-        this.pathtracerGeometryBindGroupLayout = geometryBindGroupLayout;
-        this.pathtracerTextureBindGroup = textureBindGroup;
-        this.pathtracerTextureBindGroupLayout = textureBindGroupLayout;
+        this.scene.appendClothGeometry(this.clothSimulator);
+        this.scene.createBuffersAndBindGroup();
 
         this.pathtracerTempRenderTexture1View = this.pathtracerTempRenderTexture1.createView();
         this.pathtracerTempRenderTexture2View = this.pathtracerTempRenderTexture2.createView();
@@ -238,7 +227,7 @@ export class Pathtracer extends renderer.Renderer {
                 bindGroupLayouts: [
                     this.sceneUniformsBindGroupLayout,
                     this.pathtracerComputeBindGroupLayout,
-                    this.pathtracerGeometryBindGroupLayout,
+                    this.scene.geometryBindGroupLayout!,
                 ],
             }),
             compute: {
@@ -257,7 +246,7 @@ export class Pathtracer extends renderer.Renderer {
                 bindGroupLayouts: [
                     this.sceneUniformsBindGroupLayout,
                     this.pathtracerComputeBindGroupLayout,
-                    this.pathtracerTextureBindGroupLayout,
+                    this.scene.textureBindGroupLayout!,
                 ],
             }),
             compute: {
@@ -370,16 +359,32 @@ export class Pathtracer extends renderer.Renderer {
 
         // run cloth simulation every 20 frames
         if (this.frameCount % 20 === 0) {
-            this.clothSimulator.simulate();
+            const encoder = renderer.device.createCommandEncoder();
 
-            this.scene.updateGeometryWithCloth(this.clothSimulator.clothMesh, false);
+            const computePass = encoder.beginComputePass();
+            computePass.setPipeline(this.clothSimulator.computePipeline);
+            computePass.setBindGroup(0, this.clothSimulator.bindGroup);
+            const workgroupSize = 256;
+            const numVertices = this.clothSimulator.clothMesh.positionsArray.length;
+            computePass.dispatchWorkgroups(Math.ceil(numVertices / workgroupSize));
+            computePass.end();
 
-            const { geometryBindGroup, geometryBindGroupLayout, textureBindGroup, textureBindGroupLayout } =
-                this.scene.createBuffersAndBindGroup();
-            this.pathtracerGeometryBindGroup = geometryBindGroup;
-            this.pathtracerGeometryBindGroupLayout = geometryBindGroupLayout;
-            this.pathtracerTextureBindGroup = textureBindGroup;
-            this.pathtracerTextureBindGroupLayout = textureBindGroupLayout;
+            const vertexSize = 3 * 4;
+            const clothVertexCount = this.clothSimulator.clothMesh.positionsArray.length;
+            const clothBufferSize = clothVertexCount * vertexSize;
+
+            const sceneVertexCount = this.scene.vertexDataArray.length;
+            const clothOffset = (sceneVertexCount - clothVertexCount) * vertexSize;
+
+            encoder.copyBufferToBuffer(
+                this.clothSimulator.positionBuffer,
+                0,
+                this.scene.vertexBuffer!,
+                clothOffset,
+                clothBufferSize
+            );
+
+            renderer.device.queue.submit([encoder.finish()]);
         }
 
         const encoder = renderer.device.createCommandEncoder();
@@ -419,7 +424,7 @@ export class Pathtracer extends renderer.Renderer {
                 computePass.setPipeline(this.pathtracerComputePipelineComputeIntersections);
                 computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
                 computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
-                computePass.setBindGroup(shaders.constants.bindGroup_geometry, this.pathtracerGeometryBindGroup);
+                computePass.setBindGroup(shaders.constants.bindGroup_geometry, this.scene.geometryBindGroup!);
                 computePass.dispatchWorkgroups(
                     Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
                     Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
@@ -432,7 +437,7 @@ export class Pathtracer extends renderer.Renderer {
                 computePass.setPipeline(this.pathtracerComputePipelineIntegrate);
                 computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
                 computePass.setBindGroup(shaders.constants.bindGroup_pathtracer, this.pathtracerComputeBindGroupTemp1);
-                computePass.setBindGroup(shaders.constants.bindGroup_textures, this.pathtracerTextureBindGroup);
+                computePass.setBindGroup(shaders.constants.bindGroup_textures, this.scene.textureBindGroup!);
                 computePass.dispatchWorkgroups(
                     Math.ceil(renderer.canvas.width / shaders.constants.workgroupSizeX),
                     Math.ceil(renderer.canvas.height / shaders.constants.workgroupSizeY)
