@@ -1,6 +1,7 @@
 import * as renderer from "../renderer";
 import * as shaders from "../shaders/shaders";
 import { Stage } from "../stage/stage";
+import { ClothSimulator } from "../stage/cloth";
 
 export class Pathtracer extends renderer.Renderer {
     sceneUniformsBindGroupLayout: GPUBindGroupLayout;
@@ -38,6 +39,9 @@ export class Pathtracer extends renderer.Renderer {
     renderTextureBindGroupTemp2: GPUBindGroup;
 
     pipeline: GPURenderPipeline;
+
+    clothSimulator: ClothSimulator;
+    frameCount: number = 0;
 
     constructor(stage: Stage) {
         super(stage);
@@ -122,6 +126,10 @@ export class Pathtracer extends renderer.Renderer {
         });
 
         this.scene.addCustomObjects();
+
+        this.clothSimulator = new ClothSimulator();
+        this.scene.updateGeometryWithCloth(this.clothSimulator.clothMesh, true);
+
         const { geometryBindGroup, geometryBindGroupLayout, textureBindGroup, textureBindGroupLayout } =
             this.scene.createBuffersAndBindGroup();
         this.pathtracerGeometryBindGroup = geometryBindGroup;
@@ -358,6 +366,22 @@ export class Pathtracer extends renderer.Renderer {
     }
 
     override draw() {
+        this.frameCount++;
+
+        // run cloth simulation every 20 frames
+        if (this.frameCount % 20 === 0) {
+            this.clothSimulator.simulate();
+
+            this.scene.updateGeometryWithCloth(this.clothSimulator.clothMesh, false);
+
+            const { geometryBindGroup, geometryBindGroupLayout, textureBindGroup, textureBindGroupLayout } =
+                this.scene.createBuffersAndBindGroup();
+            this.pathtracerGeometryBindGroup = geometryBindGroup;
+            this.pathtracerGeometryBindGroupLayout = geometryBindGroupLayout;
+            this.pathtracerTextureBindGroup = textureBindGroup;
+            this.pathtracerTextureBindGroupLayout = textureBindGroupLayout;
+        }
+
         const encoder = renderer.device.createCommandEncoder();
         const canvasTextureView = renderer.context.getCurrentTexture().createView();
 

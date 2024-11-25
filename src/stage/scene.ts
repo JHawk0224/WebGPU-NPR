@@ -9,6 +9,7 @@ import { registerLoaders, load } from "@loaders.gl/core";
 import { GLTFLoader, GLTFWithBuffers } from "@loaders.gl/gltf";
 import { ImageLoader } from "@loaders.gl/images";
 import { vec2, Vec2, vec3, Vec3, Mat4, mat4 } from "wgpu-matrix";
+import { ClothMesh } from "./cloth";
 import { device } from "../renderer";
 
 const enableBVH = true;
@@ -1011,7 +1012,7 @@ export class Scene {
             styleType: 2,
         });
 
-        // // A cube
+        // A cube
         const identityMat4 = mat4.identity();
         this.geomDataArray.push({
             transform: identityMat4,
@@ -1025,7 +1026,7 @@ export class Scene {
             objectId: 1,
         });
 
-        // // Floor
+        // Floor
         let scaleMat4 = mat4.create(10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0);
         let rotateMat4 = identityMat4;
         let translateMat4 = mat4.create(
@@ -1129,7 +1130,24 @@ export class Scene {
 
         // Left Mirror greyscale
         scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        rotateMat4 = mat4.create(0.7071, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
+        rotateMat4 = mat4.create(
+            0.7071,
+            0.0,
+            0.7071,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.7071,
+            0.0,
+            0.7071,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+        ); // 45 degrees
         translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -2.6, 0.0, 0.0, 0.0, 1.0);
         transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
         this.geomDataArray.push({
@@ -1163,7 +1181,24 @@ export class Scene {
 
         // Right Mirror
         scaleMat4 = mat4.create(3.0, 0.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-        rotateMat4 = mat4.create(0.7071, 0.0, 0.7071, 0.0, 0.0, 1.0, 0.0, 0.0, -0.7071, 0.0, 0.7071, 0.0, 0.0, 0.0, 0.0, 1.0); // 45 degrees
+        rotateMat4 = mat4.create(
+            0.7071,
+            0.0,
+            0.7071,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.7071,
+            0.0,
+            0.7071,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+        ); // 45 degrees
         translateMat4 = mat4.create(1.0, 0.0, 0.0, 3.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.6, 0.0, 0.0, 0.0, 1.0);
         transformMat4 = mat4.transpose(mat4.mul(mat4.mul(scaleMat4, rotateMat4), translateMat4));
         this.geomDataArray.push({
@@ -1177,5 +1212,78 @@ export class Scene {
             bvhRootNodeIdx: -1,
             objectId: 9,
         });
+
+        this.totalVertexCount = this.vertexDataArray.length;
+        this.totalTriangleCount = this.triangleDataArray.length;
     };
+
+    updateGeometryWithCloth(clothMesh: ClothMesh, append: boolean) {
+        // Update the scene's geometry with the cloth mesh data
+        // Append to existing geometry if append is true, otherwise replace the existing geometry
+
+        const originalNumVertices = this.vertexDataArray.length;
+        const numMeshVertices = clothMesh.positionsArray.length;
+        if (!append) {
+            for (let i = 0; i < numMeshVertices; i++) {
+                const position = clothMesh.positionsArray[i];
+                const normal = clothMesh.normalsArray[i];
+                const uv = clothMesh.uvsArray[i];
+                this.vertexDataArray[originalNumVertices - numMeshVertices + i] = {
+                    position,
+                    normal,
+                    uv,
+                };
+            }
+        } else if (append) {
+            for (let i = 0; i < numMeshVertices; i++) {
+                const position = clothMesh.positionsArray[i];
+                const normal = clothMesh.normalsArray[i];
+                const uv = clothMesh.uvsArray[i];
+                this.vertexDataArray.push({
+                    position,
+                    normal,
+                    uv,
+                });
+            }
+
+            const originalNumTriangles = this.triangleDataArray.length;
+            const numMeshTriangles = clothMesh.indices.length / 3;
+            for (let i = 0; i < numMeshTriangles; i++) {
+                const v0 = clothMesh.indices[i * 3 + 0] + originalNumVertices;
+                const v1 = clothMesh.indices[i * 3 + 1] + originalNumVertices;
+                const v2 = clothMesh.indices[i * 3 + 2] + originalNumVertices;
+                this.triangleDataArray.push({
+                    v0,
+                    v1,
+                    v2,
+                    materialId: 0,
+                });
+            }
+
+            const identity = mat4.identity();
+            const geomData: GeomData = {
+                transform: identity,
+                inverseTransform: identity,
+                invTranspose: identity,
+                geomType: 2,
+                materialId: 0,
+                triangleCount: numMeshTriangles,
+                triangleStartIdx: originalNumTriangles,
+                bvhRootNodeIdx: -1,
+            };
+
+            geomData.bvhRootNodeIdx = this.buildBVH(
+                this.triangleDataArray,
+                geomData.triangleStartIdx,
+                geomData.triangleStartIdx + geomData.triangleCount,
+                this.bvhNodesArray,
+                enableBVH
+            );
+
+            this.geomDataArray.push(geomData);
+        }
+
+        this.totalVertexCount = this.vertexDataArray.length;
+        this.totalTriangleCount = this.triangleDataArray.length;
+    }
 }

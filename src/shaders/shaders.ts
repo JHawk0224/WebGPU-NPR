@@ -19,6 +19,7 @@ import pathtracerVertRaw from "./pathtracer.vs.wgsl?raw";
 import pathtracerFragRaw from "./pathtracer.fs.wgsl?raw";
 
 import pathtracerComputeRaw from "./pathtracer.cs.wgsl?raw";
+import clothSimComputeRaw from "./cloth_sim.cs.wgsl?raw";
 
 // CONSTANTS (for use in shaders)
 // =================================
@@ -86,3 +87,4 @@ export const pathtracerVertSrc: string = processShaderRaw(pathtracerVertRaw);
 export const pathtracerFragSrc: string = processShaderRaw(pathtracerFragRaw);
 
 export const pathtracerComputeSrc: string = processShaderRawPT(pathtracerComputeRaw);
+export const clothSimComputeSrc: string = processShaderRawPT(clothSimComputeRaw);
