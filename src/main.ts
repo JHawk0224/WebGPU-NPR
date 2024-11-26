@@ -54,7 +54,7 @@ var renderer: Renderer | undefined;
 
 const settings = {
     mode: "pathtracer",
-    enableBVH: true,
+    enableBVH: scene.enableBVH,
 };
 
 function setRenderer(settings: { mode: string; enableBVH: boolean }) {

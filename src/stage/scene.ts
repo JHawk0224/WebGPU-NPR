@@ -280,7 +280,7 @@ async function getPixelDataFromGltfImage(
 }
 
 export class Scene {
-    enableBVH: Boolean = true;
+    enableBVH: boolean = true;
 
     vertexDataArray: VertexData[] = [];
     triangleDataArray: TriangleData[] = [];
@@ -551,7 +551,7 @@ export class Scene {
         }
     }
 
-    private buildBVHNode(start: number, end: number, recurse: Boolean = true): number {
+    private buildBVHNode(start: number, end: number, recurse: boolean = true): number {
         const node: BVHNodeData = {
             boundsMin: vec3.create(Infinity, Infinity, Infinity),
             boundsMax: vec3.create(-Infinity, -Infinity, -Infinity),
@@ -627,7 +627,7 @@ export class Scene {
         this.createBindGroups();
     }
 
-    setBVHEnabled(enabled: Boolean) {
+    setBVHEnabled(enabled: boolean) {
         if (enabled === this.enableBVH) {
             return;
         }
