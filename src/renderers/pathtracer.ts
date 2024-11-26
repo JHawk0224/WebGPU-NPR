@@ -54,12 +54,6 @@ export class Pathtracer extends renderer.Renderer {
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "uniform" },
                 },
-                {
-                    // lightSet
-                    binding: 1,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "read-only-storage" },
-                },
             ],
         });
 
@@ -70,10 +64,6 @@ export class Pathtracer extends renderer.Renderer {
                 {
                     binding: 0,
                     resource: { buffer: this.camera.uniformsBuffer },
-                },
-                {
-                    binding: 1,
-                    resource: { buffer: this.lights.lightSetStorageBuffer },
                 },
             ],
         });
