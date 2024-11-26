@@ -349,7 +349,7 @@ export class Pathtracer extends renderer.Renderer {
         });
     }
 
-    override draw() {
+    override async draw() {
         this.frameCount++;
 
         let resetAccumulation = this.camera.updated;
@@ -369,44 +369,21 @@ export class Pathtracer extends renderer.Renderer {
             const vertexSize = 3 * 4 * 4;
             const clothVertexCount = this.clothSimulator.clothMesh.positionsArray.length;
             const clothBufferSize = clothVertexCount * vertexSize;
-
-            const sceneVertexCount = this.scene.vertexDataArray.length;
-            const clothOffset = (sceneVertexCount - clothVertexCount) * vertexSize;
-
-            encoder.copyBufferToBuffer(
-                this.clothSimulator.vertexBuffer,
-                0,
-                this.scene.vertexBuffer!,
-                clothOffset,
-                clothBufferSize
-            );
-
-            // // Step 1: Create a staging buffer to read back data to the CPU
-            // const stagingBuffer = renderer.device.createBuffer({
-            //     size: clothBufferSize,
-            //     usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-            // });
-
-            // // Step 2: Copy the vertex buffer data into the staging buffer
-            // encoder.copyBufferToBuffer(this.clothSimulator.vertexBuffer, 0, stagingBuffer, 0, clothBufferSize);
-
-            // // Step 3: Submit the commands
-            // renderer.device.queue.submit([encoder.finish()]);
-
-            // // Step 4: Map the staging buffer for reading
-            // await stagingBuffer.mapAsync(GPUMapMode.READ);
-
-            // // Step 5: Read and print the data
-            // const copyArrayBuffer = stagingBuffer.getMappedRange();
-            // const float32Array = new Float32Array(copyArrayBuffer);
-            // console.log("Vertex Buffer Data:", float32Array.slice(float32Array.length - 12));
-
-            // // Step 6: Unmap the staging buffer
-            // stagingBuffer.unmap();
-            // // END
+            const stagingBuffer = renderer.device.createBuffer({
+                size: clothBufferSize,
+                usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+            });
+            encoder.copyBufferToBuffer(this.clothSimulator.vertexBuffer, 0, stagingBuffer, 0, clothBufferSize);
 
             renderer.device.queue.submit([encoder.finish()]);
 
+            await stagingBuffer.mapAsync(GPUMapMode.READ);
+            const vertexData = stagingBuffer.getMappedRange();
+            const vertexHostBuffer = new Float32Array(vertexData);
+
+            this.scene.setVertexDataFromBuffer(vertexHostBuffer);
+            stagingBuffer.unmap();
+            this.scene.createVertexBuffer();
             this.scene.rebuildBVH();
 
             resetAccumulation = true;

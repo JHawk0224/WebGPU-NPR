@@ -614,11 +614,13 @@ export class Scene {
     rebuildBVH() {
         this.bvhNodesArray = [];
         this.geomDataArray = this.geomDataArray.map((geomData) => {
-            geomData.bvhRootNodeIdx = this.buildBVHNode(
-                geomData.triangleStartIdx,
-                geomData.triangleStartIdx + geomData.triangleCount,
-                this.enableBVH
-            );
+            if (geomData.geomType === 2) {
+                geomData.bvhRootNodeIdx = this.buildBVHNode(
+                    geomData.triangleStartIdx,
+                    geomData.triangleStartIdx + geomData.triangleCount,
+                    this.enableBVH
+                );
+            }
             return geomData;
         });
 
@@ -955,6 +957,18 @@ export class Scene {
             layout: this.textureBindGroupLayout,
             entries: textureBindGroupEntries,
         });
+    };
+
+    setVertexDataFromBuffer = (buffer: Float32Array) => {
+        const numElems = buffer.length / 12;
+        this.vertexDataArray = [];
+        for (let i = 0; i < numElems; i++) {
+            this.vertexDataArray.push({
+                position: vec3.create(buffer[i * 12], buffer[i * 12 + 1], buffer[i * 12 + 2]),
+                normal: vec3.create(buffer[i * 12 + 4], buffer[i * 12 + 5], buffer[i * 12 + 6]),
+                uv: vec2.create(buffer[i * 8], buffer[i * 12 + 9]),
+            });
+        }
     };
 
     appendClothGeometry = (clothSim: ClothSimulator) => {

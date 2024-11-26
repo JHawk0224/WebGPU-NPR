@@ -179,10 +179,10 @@ export abstract class Renderer {
         cancelAnimationFrame(this.frameRequestId);
     }
 
-    protected abstract draw(): void;
+    protected abstract draw(): Promise<void> | void;
 
     // the main rendering loop
-    private onFrame(time: number) {
+    private async onFrame(time: number) {
         if (this.prevTime == 0) {
             this.prevTime = time;
         }
@@ -192,7 +192,7 @@ export abstract class Renderer {
 
         this.stats.begin();
 
-        this.draw();
+        await this.draw();
 
         this.stats.end();
 
