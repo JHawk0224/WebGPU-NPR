@@ -60,7 +60,7 @@ const settings = {
 function setRenderer(settings: { mode: string; enableBVH: boolean }) {
     renderer?.stop();
 
-    stage.scene.enableBVH = settings.enableBVH;
+    stage.scene.setBVHEnabled(settings.enableBVH);
     renderer = new Pathtracer(stage);
 }
 
@@ -71,10 +71,10 @@ renderModeController.onChange((value) => {
     setRenderer(settings);
 });
 
-// const enableBVHController = gui.add(settings, "enableBVH").name("Enable BVH");
-// enableBVHController.onChange((value) => {
-//     settings.enableBVH = value;
-//     setRenderer(settings);
-// });
+const enableBVHController = gui.add(settings, "enableBVH").name("Enable BVH");
+enableBVHController.onChange((value) => {
+    settings.enableBVH = value;
+    setRenderer(settings);
+});
 
 setRenderer(settings);

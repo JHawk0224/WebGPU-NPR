@@ -287,7 +287,7 @@ export class Scene {
     geomDataArray: GeomData[] = [];
     bvhNodesArray: BVHNodeData[] = [];
     textureDataArrays: Float32Array[] = [];
-    textureDescriptors: TextureDescriptor[] = [];
+    textureDescriptorArray: TextureDescriptor[] = [];
     materialDataArray: MaterialData[] = [];
     currentTextureOffset: number = 0;
 
@@ -299,14 +299,25 @@ export class Scene {
     triangleBuffer: GPUBuffer | null = null;
     bvhBuffer: GPUBuffer | null = null;
     materialBuffer: GPUBuffer | null = null;
-    textureDataBuffer: GPUBuffer | null = null;
-    descriptorsBuffer: GPUBuffer | null = null;
-    dummyBuffer: GPUBuffer | null = null;
+    textureBuffer: GPUBuffer | null = null;
+    textureDescriptorBuffer: GPUBuffer | null = null;
+    dummyBuffer: GPUBuffer;
 
     geometryBindGroupLayout: GPUBindGroupLayout | null = null;
     geometryBindGroup: GPUBindGroup | null = null;
     textureBindGroupLayout: GPUBindGroupLayout | null = null;
     textureBindGroup: GPUBindGroup | null = null;
+
+    constructor() {
+        this.dummyBuffer = device.createBuffer({
+            label: "dummy buffer",
+            size: 64,
+            usage: GPUBufferUsage.STORAGE,
+            mappedAtCreation: true,
+        });
+        new Uint8Array(this.dummyBuffer.getMappedRange()).fill(0);
+        this.dummyBuffer.unmap();
+    }
 
     async loadGltf(
         filePath: string,
@@ -330,7 +341,7 @@ export class Scene {
         const meshes = gltf.meshes || [];
         const nodes = gltf.nodes || [];
         const scenes = gltf.scenes || [];
-        const existingTextureCount = this.textureDescriptors.length;
+        const existingTextureCount = this.textureDescriptorArray.length;
         const existingMaterialCount = this.materialDataArray.length;
 
         // Load textures into buffers
@@ -355,7 +366,7 @@ export class Scene {
                 magFilter = sampler.magFilter ?? magFilter;
             }
 
-            const descriptor: TextureDescriptor = {
+            const textureDescriptor: TextureDescriptor = {
                 width: width,
                 height: height,
                 offset: this.currentTextureOffset,
@@ -364,7 +375,7 @@ export class Scene {
                 minFilter: mapFilterMode(minFilter),
                 magFilter: mapFilterMode(magFilter),
             };
-            this.textureDescriptors.push(descriptor);
+            this.textureDescriptorArray.push(textureDescriptor);
 
             this.currentTextureOffset += width * height;
         }
@@ -506,7 +517,7 @@ export class Scene {
                             v0: indices[idx + 0],
                             v1: indices[idx + 1],
                             v2: indices[idx + 2],
-                            materialId: materialIndex === -1 ? -1 : materialIndex + existingMaterialCount,
+                            materialId: materialIndex >= 0 ? materialIndex + existingMaterialCount : -1,
                         });
                     }
 
@@ -527,11 +538,9 @@ export class Scene {
                 };
 
                 // Build BVH for this mesh (if disabled, still do box around all triangles)
-                geomData.bvhRootNodeIdx = this.buildBVH(
-                    this.triangleDataArray,
-                    meshTriangleStartIdx,
-                    meshTriangleStartIdx + meshTriangleCount,
-                    this.bvhNodesArray,
+                geomData.bvhRootNodeIdx = this.buildBVHNode(
+                    geomData.triangleStartIdx,
+                    geomData.triangleStartIdx + geomData.triangleCount,
                     this.enableBVH
                 );
 
@@ -542,13 +551,7 @@ export class Scene {
         }
     }
 
-    private buildBVH(
-        trianglesArray: TriangleData[],
-        start: number,
-        end: number,
-        bvhNodes: BVHNodeData[],
-        recurse: Boolean = true
-    ): number {
+    private buildBVHNode(start: number, end: number, recurse: Boolean = true): number {
         const node: BVHNodeData = {
             boundsMin: vec3.create(Infinity, Infinity, Infinity),
             boundsMax: vec3.create(-Infinity, -Infinity, -Infinity),
@@ -559,7 +562,7 @@ export class Scene {
         };
 
         for (let i = start; i < end; i++) {
-            const tri = trianglesArray[i];
+            const tri = this.triangleDataArray[i];
             const v0 = this.vertexDataArray[tri.v0].position;
             const v1 = this.vertexDataArray[tri.v1].position;
             const v2 = this.vertexDataArray[tri.v2].position;
@@ -578,7 +581,7 @@ export class Scene {
             const extent = vec3.subtract(node.boundsMax, node.boundsMin);
             let axis = extent.indexOf(Math.max(...extent));
 
-            const trianglesToSort = trianglesArray.slice(start, end);
+            const trianglesToSort = this.triangleDataArray.slice(start, end);
             trianglesToSort.sort((a, b) => {
                 const v0a = this.vertexDataArray[a.v0].position;
                 const v1a = this.vertexDataArray[a.v1].position;
@@ -594,48 +597,75 @@ export class Scene {
             });
 
             for (let i = start; i < end; i++) {
-                trianglesArray[i] = trianglesToSort[i - start];
+                this.triangleDataArray[i] = trianglesToSort[i - start];
             }
 
             const mid = Math.floor((start + end) / 2);
-            node.leftChild = this.buildBVH(trianglesArray, start, mid, bvhNodes, recurse);
-            node.rightChild = this.buildBVH(trianglesArray, mid, end, bvhNodes, recurse);
+            node.leftChild = this.buildBVHNode(start, mid, recurse);
+            node.rightChild = this.buildBVHNode(mid, end, recurse);
             node.triangleStart = -1;
             node.triangleCount = 0;
         }
 
-        bvhNodes.push(node);
-        return bvhNodes.length - 1;
+        this.bvhNodesArray.push(node);
+        return this.bvhNodesArray.length - 1;
     }
 
-    createBuffersAndBindGroup = () => {
-        // Vertex Buffer
-        const totalVertexData = new Float32Array(this.totalVertexCount * 12);
-        let offset = 0;
-        for (const vertex of this.vertexDataArray) {
-            totalVertexData.set(vertex.position, offset);
-            offset += 4;
-            totalVertexData.set(vertex.normal, offset);
-            offset += 4;
-            totalVertexData.set(vertex.uv, offset);
-            offset += 4;
-        }
+    rebuildBVH() {
+        this.bvhNodesArray = [];
+        this.geomDataArray = this.geomDataArray.map((geomData) => {
+            geomData.bvhRootNodeIdx = this.buildBVHNode(
+                geomData.triangleStartIdx,
+                geomData.triangleStartIdx + geomData.triangleCount,
+                this.enableBVH
+            );
+            return geomData;
+        });
 
+        this.createGeometryBuffer();
+        this.createBVHBuffer();
+        this.createBindGroups();
+    }
+
+    setBVHEnabled(enabled: Boolean) {
+        if (enabled === this.enableBVH) {
+            return;
+        }
+        this.enableBVH = enabled;
+
+        this.rebuildBVH();
+    }
+
+    createVertexBuffer = () => {
         this.vertexBuffer = device.createBuffer({
             label: "vertices",
-            size: totalVertexData.byteLength,
+            size: this.vertexDataArray.length * 12 * 4,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            mappedAtCreation: true,
         });
-        new Float32Array(this.vertexBuffer.getMappedRange()).set(totalVertexData);
-        this.vertexBuffer.unmap();
 
-        // Triangle Buffer
-        const trianglesSize = this.triangleDataArray.length;
-        const trianglesBufferSize = trianglesSize * 16;
-        const triangleHostBuffer = new ArrayBuffer(trianglesBufferSize);
+        const vertexHostBuffer = new Float32Array(this.vertexBuffer.size / 4);
+        let offset = 0;
+        for (const vertex of this.vertexDataArray) {
+            vertexHostBuffer.set(vertex.position, offset);
+            offset += 4;
+            vertexHostBuffer.set(vertex.normal, offset);
+            offset += 4;
+            vertexHostBuffer.set(vertex.uv, offset);
+            offset += 4;
+        }
+        device.queue.writeBuffer(this.vertexBuffer, 0, vertexHostBuffer.buffer);
+    };
+
+    createTriangleBuffer = () => {
+        this.triangleBuffer = device.createBuffer({
+            label: "triangles",
+            size: this.triangleDataArray.length * 4 * 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+
+        const triangleHostBuffer = new ArrayBuffer(this.triangleBuffer.size);
         const triangleDataView = new DataView(triangleHostBuffer);
-        offset = 0;
+        let offset = 0;
 
         for (const tri of this.triangleDataArray) {
             triangleDataView.setUint32(offset, tri.v0, true);
@@ -647,22 +677,21 @@ export class Scene {
             triangleDataView.setInt32(offset, tri.materialId, true);
             offset += 4;
         }
+        device.queue.writeBuffer(this.triangleBuffer, 0, triangleHostBuffer);
+    };
 
-        this.triangleBuffer = device.createBuffer({
-            label: "triangles",
-            size: triangleDataView.byteLength,
+    createGeometryBuffer = () => {
+        this.geomBuffer = device.createBuffer({
+            label: "geoms",
+            size: 16 + this.geomDataArray.length * (16 * 4 * 3 + 16 * 2),
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
-        device.queue.writeBuffer(this.triangleBuffer, 0, triangleHostBuffer);
 
-        // Geometry Buffer
-        const geomsSize = this.geomDataArray.length;
-        const geomsBufferSize = 16 + geomsSize * (16 * 4 * 3 + 16 * 2);
-        const geomHostBuffer = new ArrayBuffer(geomsBufferSize);
+        const geomHostBuffer = new ArrayBuffer(this.geomBuffer.size);
         const geomDataView = new DataView(geomHostBuffer);
-        offset = 0;
+        let offset = 0;
 
-        geomDataView.setUint32(offset, geomsSize, true);
+        geomDataView.setUint32(offset, this.geomDataArray.length, true);
         offset += 16;
 
         for (const geomData of this.geomDataArray) {
@@ -685,22 +714,21 @@ export class Scene {
             geomDataView.setUint32(offset, geomData.objectId, true);
             offset += 12;
         }
+        device.queue.writeBuffer(this.geomBuffer, 0, geomDataView);
+    };
 
-        this.geomBuffer = device.createBuffer({
-            label: "geoms",
-            size: geomDataView.byteLength,
+    createBVHBuffer = () => {
+        this.bvhBuffer = device.createBuffer({
+            label: "bvh",
+            size: 16 + this.bvhNodesArray.length * (16 * 3),
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
-        device.queue.writeBuffer(this.geomBuffer, 0, geomDataView);
 
-        // BVH Buffer
-        const bvhNodesSize = this.bvhNodesArray.length;
-        const bvhNodesBufferSize = 16 + bvhNodesSize * (16 * 3);
-        const bvhNodesBuffer = new ArrayBuffer(bvhNodesBufferSize);
+        const bvhNodesBuffer = new ArrayBuffer(this.bvhBuffer.size);
         const bvhDataView = new DataView(bvhNodesBuffer);
-        offset = 0;
+        let offset = 0;
 
-        bvhDataView.setUint32(offset, bvhNodesSize, true);
+        bvhDataView.setUint32(offset, this.bvhNodesArray.length, true);
         offset += 16;
 
         for (const node of this.bvhNodesArray) {
@@ -723,21 +751,20 @@ export class Scene {
             bvhDataView.setUint32(offset, node.triangleCount, true);
             offset += 4;
         }
+        device.queue.writeBuffer(this.bvhBuffer, 0, bvhNodesBuffer);
+    };
 
-        this.bvhBuffer = device.createBuffer({
-            label: "bvh",
-            size: bvhNodesBuffer.byteLength,
+    createMaterialBuffer = () => {
+        this.materialBuffer = device.createBuffer({
+            label: "materials",
+            size: this.materialDataArray.length * 16 * 4,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
-        device.queue.writeBuffer(this.bvhBuffer, 0, bvhNodesBuffer);
 
-        // Material Buffer
-        const materialsSize = this.materialDataArray.length;
-        const materialsBufferSize = materialsSize * 64;
-        const materialHostBuffer = new ArrayBuffer(materialsBufferSize);
+        const materialHostBuffer = new ArrayBuffer(this.materialBuffer.size);
         const materialDataView = new DataView(materialHostBuffer);
+        let offset = 0;
 
-        offset = 0;
         for (const material of this.materialDataArray) {
             for (let i = 0; i < 4; i++) {
                 materialDataView.setFloat32(offset, material.baseColorFactor[i], true);
@@ -760,68 +787,63 @@ export class Scene {
             materialDataView.setUint32(offset, material.styleType ?? 0, true);
             offset += 16;
         }
-
-        this.materialBuffer = device.createBuffer({
-            label: "materials",
-            size: materialHostBuffer.byteLength,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
         device.queue.writeBuffer(this.materialBuffer, 0, materialHostBuffer);
+    };
 
-        // Texture Data Buffer
+    createTextureBuffer = () => {
         let totalTextureDataLength = 0;
         for (const floatData of this.textureDataArrays) {
             totalTextureDataLength += floatData.length;
         }
-        const textureData = new Float32Array(totalTextureDataLength);
+        this.textureBuffer = device.createBuffer({
+            label: "texture data",
+            size: totalTextureDataLength * 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+
+        const textureHostBuffer = new Float32Array(this.textureBuffer.size / 4);
         let textureDataOffset = 0;
         for (const floatData of this.textureDataArrays) {
-            textureData.set(floatData, textureDataOffset);
+            textureHostBuffer.set(floatData, textureDataOffset);
             textureDataOffset += floatData.length;
         }
+        device.queue.writeBuffer(this.textureBuffer, 0, textureHostBuffer.buffer);
+    };
 
-        this.textureDataBuffer = device.createBuffer({
-            label: "texture data",
-            size: textureData.byteLength,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            mappedAtCreation: true,
-        });
-        new Float32Array(this.textureDataBuffer.getMappedRange()).set(textureData);
-        this.textureDataBuffer.unmap();
-
-        // Texture Descriptors Buffer
-        const descriptorsData = new Uint32Array(this.textureDescriptors.length * 8);
-        for (let i = 0; i < this.textureDescriptors.length; i++) {
-            const desc = this.textureDescriptors[i];
-            const offset = i * 8;
-            descriptorsData[offset + 0] = desc.width;
-            descriptorsData[offset + 1] = desc.height;
-            descriptorsData[offset + 2] = desc.offset;
-            descriptorsData[offset + 3] = desc.wrapS;
-            descriptorsData[offset + 4] = desc.wrapT;
-            descriptorsData[offset + 5] = desc.minFilter;
-            descriptorsData[offset + 6] = desc.magFilter;
-            descriptorsData[offset + 7] = 0;
-        }
-
-        this.descriptorsBuffer = device.createBuffer({
+    createTextureDescriptorBuffer = () => {
+        this.textureDescriptorBuffer = device.createBuffer({
             label: "texture descriptors",
-            size: descriptorsData.byteLength,
+            size: this.textureDescriptorArray.length * 8 * 4,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            mappedAtCreation: true,
         });
-        new Uint32Array(this.descriptorsBuffer.getMappedRange()).set(descriptorsData);
-        this.descriptorsBuffer.unmap();
 
-        this.dummyBuffer = device.createBuffer({
-            size: 64,
-            usage: GPUBufferUsage.STORAGE,
-            mappedAtCreation: true,
-        });
-        new Uint8Array(this.dummyBuffer.getMappedRange()).fill(0);
-        this.dummyBuffer.unmap();
+        const textureDescriptorHostBuffer = new Uint32Array(this.textureDescriptorBuffer.size / 4);
+        for (let i = 0; i < this.textureDescriptorArray.length; i++) {
+            const desc = this.textureDescriptorArray[i];
+            const offset = i * 8;
+            textureDescriptorHostBuffer[offset + 0] = desc.width;
+            textureDescriptorHostBuffer[offset + 1] = desc.height;
+            textureDescriptorHostBuffer[offset + 2] = desc.offset;
+            textureDescriptorHostBuffer[offset + 3] = desc.wrapS;
+            textureDescriptorHostBuffer[offset + 4] = desc.wrapT;
+            textureDescriptorHostBuffer[offset + 5] = desc.minFilter;
+            textureDescriptorHostBuffer[offset + 6] = desc.magFilter;
+            textureDescriptorHostBuffer[offset + 7] = 0;
+        }
+        device.queue.writeBuffer(this.textureDescriptorBuffer, 0, textureDescriptorHostBuffer.buffer);
+    };
 
-        // Bind groups
+    createBuffers = () => {
+        this.createVertexBuffer();
+        this.createTriangleBuffer();
+        this.createGeometryBuffer();
+        this.createBVHBuffer();
+        this.createMaterialBuffer();
+        this.createTextureBuffer();
+        this.createTextureDescriptorBuffer();
+    };
+
+    createBindGroups = () => {
         this.geometryBindGroupLayout = device.createBindGroupLayout({
             label: "geometry bind group layout",
             entries: [
@@ -876,26 +898,50 @@ export class Scene {
         });
 
         const geometryBindGroupEntries: GPUBindGroupEntry[] = [
-            { binding: 0, resource: { buffer: totalVertexData.byteLength > 0 ? this.vertexBuffer : this.dummyBuffer } },
+            {
+                binding: 0,
+                resource: {
+                    buffer: this.vertexBuffer && this.vertexBuffer.size > 0 ? this.vertexBuffer : this.dummyBuffer,
+                },
+            },
             {
                 binding: 1,
-                resource: { buffer: triangleHostBuffer.byteLength > 0 ? this.triangleBuffer : this.dummyBuffer },
+                resource: {
+                    buffer:
+                        this.triangleBuffer && this.triangleBuffer.size > 0 ? this.triangleBuffer : this.dummyBuffer,
+                },
             },
-            { binding: 2, resource: { buffer: geomHostBuffer.byteLength > 16 ? this.geomBuffer : this.dummyBuffer } },
-            { binding: 3, resource: { buffer: bvhNodesBuffer.byteLength > 16 ? this.bvhBuffer : this.dummyBuffer } },
+            {
+                binding: 2,
+                resource: { buffer: this.geomBuffer && this.geomBuffer.size > 16 ? this.geomBuffer : this.dummyBuffer },
+            },
+            {
+                binding: 3,
+                resource: { buffer: this.bvhBuffer && this.bvhBuffer.size > 16 ? this.bvhBuffer : this.dummyBuffer },
+            },
         ];
         const textureBindGroupEntries: GPUBindGroupEntry[] = [
             {
                 binding: 0,
-                resource: { buffer: materialHostBuffer.byteLength > 0 ? this.materialBuffer : this.dummyBuffer },
+                resource: {
+                    buffer:
+                        this.materialBuffer && this.materialBuffer.size > 0 ? this.materialBuffer : this.dummyBuffer,
+                },
             },
             {
                 binding: 1,
-                resource: { buffer: descriptorsData.byteLength > 0 ? this.descriptorsBuffer : this.dummyBuffer },
+                resource: {
+                    buffer:
+                        this.textureDescriptorBuffer && this.textureDescriptorBuffer.size > 0
+                            ? this.textureDescriptorBuffer
+                            : this.dummyBuffer,
+                },
             },
             {
                 binding: 2,
-                resource: { buffer: textureData.byteLength > 0 ? this.textureDataBuffer : this.dummyBuffer },
+                resource: {
+                    buffer: this.textureBuffer && this.textureBuffer.size > 0 ? this.textureBuffer : this.dummyBuffer,
+                },
             },
         ];
 
@@ -909,6 +955,51 @@ export class Scene {
             layout: this.textureBindGroupLayout,
             entries: textureBindGroupEntries,
         });
+    };
+
+    appendClothGeometry = (clothSim: ClothSimulator) => {
+        const clothMesh = clothSim.clothMesh;
+        const originalNumVertices = this.vertexDataArray.length;
+
+        this.vertexDataArray.push(...clothMesh.positionsArray);
+
+        const originalNumTriangles = this.triangleDataArray.length;
+        const numMeshTriangles = clothMesh.indices.length / 3;
+        for (let i = 0; i < numMeshTriangles; i++) {
+            const v0 = clothMesh.indices[i * 3 + 0] + originalNumVertices;
+            const v1 = clothMesh.indices[i * 3 + 1] + originalNumVertices;
+            const v2 = clothMesh.indices[i * 3 + 2] + originalNumVertices;
+            this.triangleDataArray.push({
+                v0,
+                v1,
+                v2,
+                materialId: 0,
+            });
+        }
+
+        const identity = mat4.identity();
+        const geomData: GeomData = {
+            transform: identity,
+            inverseTransform: identity,
+            invTranspose: identity,
+            geomType: 2,
+            materialId: 0,
+            triangleCount: numMeshTriangles,
+            triangleStartIdx: originalNumTriangles,
+            bvhRootNodeIdx: -1,
+            objectId: this.geomDataArray.length,
+        };
+
+        geomData.bvhRootNodeIdx = this.buildBVHNode(
+            geomData.triangleStartIdx,
+            geomData.triangleStartIdx + geomData.triangleCount,
+            this.enableBVH
+        );
+
+        this.geomDataArray.push(geomData);
+
+        this.totalVertexCount = this.vertexDataArray.length;
+        this.totalTriangleCount = this.triangleDataArray.length;
     };
 
     addCustomObjects = () => {
@@ -1233,53 +1324,6 @@ export class Scene {
         //     bvhRootNodeIdx: -1,
         //     objectId: objectsLength + 8,
         // });
-
-        this.totalVertexCount = this.vertexDataArray.length;
-        this.totalTriangleCount = this.triangleDataArray.length;
-    };
-
-    appendClothGeometry = (clothSim: ClothSimulator) => {
-        const clothMesh = clothSim.clothMesh;
-        const originalNumVertices = this.vertexDataArray.length;
-
-        this.vertexDataArray.push(...clothMesh.positionsArray);
-
-        const originalNumTriangles = this.triangleDataArray.length;
-        const numMeshTriangles = clothMesh.indices.length / 3;
-        for (let i = 0; i < numMeshTriangles; i++) {
-            const v0 = clothMesh.indices[i * 3 + 0] + originalNumVertices;
-            const v1 = clothMesh.indices[i * 3 + 1] + originalNumVertices;
-            const v2 = clothMesh.indices[i * 3 + 2] + originalNumVertices;
-            this.triangleDataArray.push({
-                v0,
-                v1,
-                v2,
-                materialId: 0,
-            });
-        }
-
-        const identity = mat4.identity();
-        const geomData: GeomData = {
-            transform: identity,
-            inverseTransform: identity,
-            invTranspose: identity,
-            geomType: 2,
-            materialId: 0,
-            triangleCount: numMeshTriangles,
-            triangleStartIdx: originalNumTriangles,
-            bvhRootNodeIdx: -1,
-            objectId: this.geomDataArray.length,
-        };
-
-        geomData.bvhRootNodeIdx = this.buildBVH(
-            this.triangleDataArray,
-            geomData.triangleStartIdx,
-            geomData.triangleStartIdx + geomData.triangleCount,
-            this.bvhNodesArray,
-            enableBVH
-        );
-
-        this.geomDataArray.push(geomData);
 
         this.totalVertexCount = this.vertexDataArray.length;
         this.totalTriangleCount = this.triangleDataArray.length;

@@ -118,7 +118,8 @@ export class Pathtracer extends renderer.Renderer {
 
         this.clothSimulator = new ClothSimulator();
         this.scene.appendClothGeometry(this.clothSimulator);
-        this.scene.createBuffersAndBindGroup();
+        this.scene.createBuffers();
+        this.scene.createBindGroups();
 
         this.pathtracerTempRenderTexture1View = this.pathtracerTempRenderTexture1.createView();
         this.pathtracerTempRenderTexture2View = this.pathtracerTempRenderTexture2.createView();
@@ -380,7 +381,33 @@ export class Pathtracer extends renderer.Renderer {
                 clothBufferSize
             );
 
+            // // Step 1: Create a staging buffer to read back data to the CPU
+            // const stagingBuffer = renderer.device.createBuffer({
+            //     size: clothBufferSize,
+            //     usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+            // });
+
+            // // Step 2: Copy the vertex buffer data into the staging buffer
+            // encoder.copyBufferToBuffer(this.clothSimulator.vertexBuffer, 0, stagingBuffer, 0, clothBufferSize);
+
+            // // Step 3: Submit the commands
+            // renderer.device.queue.submit([encoder.finish()]);
+
+            // // Step 4: Map the staging buffer for reading
+            // await stagingBuffer.mapAsync(GPUMapMode.READ);
+
+            // // Step 5: Read and print the data
+            // const copyArrayBuffer = stagingBuffer.getMappedRange();
+            // const float32Array = new Float32Array(copyArrayBuffer);
+            // console.log("Vertex Buffer Data:", float32Array.slice(float32Array.length - 12));
+
+            // // Step 6: Unmap the staging buffer
+            // stagingBuffer.unmap();
+            // // END
+
             renderer.device.queue.submit([encoder.finish()]);
+
+            this.scene.rebuildBVH();
 
             resetAccumulation = true;
         }

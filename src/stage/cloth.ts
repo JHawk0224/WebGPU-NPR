@@ -83,19 +83,19 @@ export class ClothSimulator {
 
     createBuffers() {
         // Position Buffer
-        const positionData = new Float32Array(this.clothMesh.positionsArray.length * 12);
+        const vertexData = new Float32Array(this.clothMesh.positionsArray.length * 12);
         const previousPositionData = new Float32Array(this.clothMesh.previousPositionsArray.length * 3);
         const velocityData = new Float32Array(this.clothMesh.velocitiesArray.length * 3);
 
         for (let i = 0; i < this.clothMesh.positionsArray.length; i++) {
-            positionData.set(this.clothMesh.positionsArray[i].position, i * 4);
-            positionData.set(this.clothMesh.positionsArray[i].normal, i * 4 + 4);
-            positionData.set(this.clothMesh.positionsArray[i].uv, i * 4 + 8);
+            vertexData.set(this.clothMesh.positionsArray[i].position, i * 4 * 3);
+            vertexData.set(this.clothMesh.positionsArray[i].normal, i * 4 * 3 + 4);
+            vertexData.set(this.clothMesh.positionsArray[i].uv, i * 4 * 3 + 8);
             previousPositionData.set(this.clothMesh.previousPositionsArray[i], i * 3);
             velocityData.set(this.clothMesh.velocitiesArray[i], i * 3);
         }
 
-        const bufferSize = positionData.byteLength;
+        const bufferSize = vertexData.byteLength;
 
         this.vertexBuffer = renderer.device.createBuffer({
             label: "cloth position buffer",
@@ -103,7 +103,7 @@ export class ClothSimulator {
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC,
             mappedAtCreation: true,
         });
-        new Float32Array(this.vertexBuffer.getMappedRange()).set(positionData);
+        new Float32Array(this.vertexBuffer.getMappedRange()).set(vertexData);
         this.vertexBuffer.unmap();
 
         this.previousPositionBuffer = renderer.device.createBuffer({
