@@ -45,7 +45,6 @@ fn generateRay(@builtin(global_invocation_id) globalIdx: vec3u) {
         segment.pixelIndex = i32(index);
         segment.remainingBounces = i32(cameraUniforms.depth);
         segment.pathPrefix = 0;
-        segment.appliedStyleType = 0;
     }
 }
 
@@ -192,7 +191,7 @@ fn scatterRay(index: u32) {
     // position : vec3<f32>,
     // normal : vec3<f32>,
     var sc : StyleContext;
-    sc.params = vec4i(i32(intersect.materialId), intersect.objectId, pathSegment.pathPrefix, pathSegment.appliedStyleType);
+    sc.params = vec4i(i32(intersect.materialId), intersect.objectId, pathSegment.pathPrefix, 0);
     sc.position = scattered.ray.origin;
     sc.normal = intersect.surfaceNormal;
 
@@ -207,7 +206,6 @@ fn scatterRay(index: u32) {
 
     // store path prefix for next iteration
     pathSegment.pathPrefix = intersect.objectId;
-    pathSegment.appliedStyleType = i32(material.styleType);
 }
 
 @compute

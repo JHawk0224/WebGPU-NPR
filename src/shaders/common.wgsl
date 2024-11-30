@@ -35,7 +35,6 @@ struct PathSegment
     pixelIndex : i32,
     remainingBounces : i32,
     pathPrefix : i32,
-    appliedStyleType : i32,
 }
 
 struct PathSegments
@@ -105,7 +104,6 @@ struct Material {
     baseColorTextureIndex: i32,  // index into textureDescriptors
     emissiveTextureIndex: i32,   // index into textureDescriptors
     matType: i32,                // material type (0: Emissive, 1: Lambertian, 2: Metal)
-    styleType: u32
 };
 
 struct Intersection
@@ -152,7 +150,7 @@ struct CameraUniforms {
 }
 
 struct StyleContext {
-    // materialId, objectId, path prefix, styleType
+    // materialId, objectId, path prefix
     // currently just look at last path vertex's objectId
     params : vec4<i32>,
     position : vec3<f32>,

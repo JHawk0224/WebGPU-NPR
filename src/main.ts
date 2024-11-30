@@ -16,17 +16,17 @@ await initWebGPU();
 setupLoaders();
 
 let scene = new Scene();
-await scene.loadGltf("./scenes/box/BoxTextured.gltf", vec3.create(1, 1, 1), vec3.create(0, 1, 2), vec3.create(0, 0, 0));
-await scene.loadGltf(
-    "./scenes/small_airplane/small_airplane.gltf",
-    vec3.create(0.5, 0.5, 0.5),
-    vec3.create(0, 0.8, 0),
-    vec3.create(0, (3 * Math.PI) / 8, 0)
-);
+// await scene.loadGltf("./scenes/box/BoxTextured.gltf", vec3.create(1, 1, 1), vec3.create(0, 1, 2), vec3.create(0, 0, 0));
+// await scene.loadGltf(
+//     "./scenes/small_airplane/small_airplane.gltf",
+//     vec3.create(0.5, 0.5, 0.5),
+//     vec3.create(0, 0, 0),
+//     vec3.create(0, (3 * Math.PI) / 8, 0)
+// );
 // await scene.loadGltf(
 //     "./scenes/person/person.gltf",
 //     vec3.create(1, 1, 1),
-//     vec3.create(-4.5, -0.8, -4),
+//     vec3.create(-4.5, -1, -4.5),
 //     vec3.create(0, -Math.PI / 4, 0)
 // );
 // await scene.loadGltf(
@@ -35,12 +35,12 @@ await scene.loadGltf(
 //     vec3.create(0, 1.5, 0),
 //     vec3.create(0, -Math.PI / 4, 0)
 // );
-// await scene.loadGltf(
-//     "./scenes/skull/skull_textures.gltf",
-//     vec3.create(1, 1, 1),
-//     vec3.create(0, 3, 0),
-//     vec3.create(Math.PI, 0, Math.PI / 2)
-// );
+await scene.loadGltf(
+    "./scenes/skull/skull_textures.gltf",
+    vec3.create(1.5, 1.5, 1.5),
+    vec3.create(0, 0, 0),
+    vec3.create(Math.PI, 0, Math.PI * 3/ 2)
+);
 // await scene.loadGltf("./scenes/sponza/Sponza.gltf"); // too big for storage
 
 const camera = new Camera();
