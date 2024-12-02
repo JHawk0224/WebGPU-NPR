@@ -6,14 +6,14 @@
 
 Authors: 
 - Alan Lee ([LinkedIn](https://www.linkedin.com/in/soohyun-alan-lee/), [Portfolio](https://www.alannos.com/))
-- Jordan Hochman ([Github](https://github.com/jhawk0224))
-- Maya Diaz Huizar ([Github](https://github.com/Aorus1))
+- Jordan Hochman ([LinkedIn](https://www.linkedin.com/in/jhochman24), [Personal Website](https://jordanh.xyz), [GitHub](https://github.com/JHawk0224))
+- Maya Diaz Huizar ([GitHub](https://github.com/Aorus1))
 
 This project showcases a WebGPU pathtracer that supports non-photorealistic rendering techniques and progressive dynamics for cloth simulation based on recent SIGGRAPH papers.
 
 The pathtracer was implemented using primarily wgsl and typescript.
 
-You can directly experience the live demo at our website on [Github page](https://alan7996.github.io/WebGPU-NPR/). 
+You can directly experience the live demo at our website on [GitHub page](https://alan7996.github.io/WebGPU-NPR/). 
 
 ### Live Demo
 
