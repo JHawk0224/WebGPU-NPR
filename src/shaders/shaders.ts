@@ -7,6 +7,7 @@ import stylizerRaw from "./stylizer.wgsl?raw";
 import pathtracerVertRaw from "./pathtracer.vs.wgsl?raw";
 import pathtracerFragRaw from "./pathtracer.fs.wgsl?raw";
 import pathtracerComputeRaw from "./pathtracer.cs.wgsl?raw";
+import pathtracerComputeNPRRaw from "./pathtracer_npr.cs.wgsl?raw";
 
 // CONSTANTS (for use in shaders)
 // =================================
@@ -46,9 +47,14 @@ function processShaderRaw(raw: string) {
 }
 
 function processShaderRawPT(raw: string) {
+    return commonSrc + intersectionSrc + integratorSrc + samplerSrc + evalShaderRaw(raw);
+}
+
+function processShaderRawPTNPR(raw: string) {
     return commonSrc + intersectionSrc + integratorSrc + samplerSrc + stylizerSrc + evalShaderRaw(raw);
 }
 
 export const pathtracerVertSrc: string = processShaderRaw(pathtracerVertRaw);
 export const pathtracerFragSrc: string = processShaderRaw(pathtracerFragRaw);
 export const pathtracerComputeSrc: string = processShaderRawPT(pathtracerComputeRaw);
+export const pathtracerComputeNPRSrc: string = processShaderRawPTNPR(pathtracerComputeNPRRaw);

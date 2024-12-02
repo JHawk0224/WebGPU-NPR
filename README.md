@@ -42,11 +42,29 @@ Follow these steps to install and view the project:
 
 ### Pathtracer
 
+Our pathtracer consists of multiple compute shader passes and a single WebGPU render pass. For each frame, we 
+1. generate camera rays
+2. perform ray-scene intersection tests
+3. shade materials and stylize
+4. repeat steps 2 and 3 until either no valid paths remain or maximum ray depth has been reached
+5. combine current frame's image with previous frames' accumulated result
+6. render latest combination as a render texture
+
+Steps 1 through 5 occur as compute shader passes, and step 6 is a render pass on the triangulated screen-space.
+
+We utilize stochastic sampled anti-aliasing in camera ray generation stage. Ray-scene intersections were accelerated using bounding volume hierarchy. Rendered frame accumulation resets on any camera movement.
+
+Note that each frame is equivalent to taking a single-sample monte carlo estimate of the rendering equation for the scene. The end result of accumulating indefinitely given absence of camera movement is essentially allowing us to average out N frames of such estimates, leading to a quick and progressive convergence.
+
 ### Non-Photorealistic Rendering
 
-### Progressive Dynamics Cloth Simulation
+Our pathtracer supports two rendering modes: regular pathtracer and pathtracer with non-photorealistic rendering (NPR). Based on a [SIGGRAPH 2024 paper](http://cv.rexwe.st/pdf/srfoe.pdf), the NPR mode performs `stylize` function on every material shader invocation.
 
-### Credits
+### Cloth Simulation
+
+## Analysis
+
+## Credits
 
 - [Stylized Rendering as a Function of Expectation (2024)](http://cv.rexwe.st/pdf/srfoe.pdf)
 - [Progressive Simulation for Cloth Quasistatics (2023)](https://pcs-sim.github.io/pcs-main.pdf)

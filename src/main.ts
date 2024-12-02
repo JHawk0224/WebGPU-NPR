@@ -3,6 +3,7 @@ import { GUI } from "dat.gui";
 
 import { initWebGPU, Renderer } from "./renderer";
 import { Pathtracer } from "./renderers/pathtracer";
+import { PathtracerNPR } from "./renderers/pathtracer_npr";
 
 import { setupLoaders, Scene } from "./stage/scene";
 import { Camera } from "./stage/camera";
@@ -53,7 +54,7 @@ const stage = new Stage(scene, camera, stats);
 var renderer: Renderer | undefined;
 
 const settings = {
-    mode: "pathtracer",
+    mode: "pathtracerNPR",
     enableBVH: true,
 };
 
@@ -61,20 +62,21 @@ function setRenderer(settings: { mode: string; enableBVH: boolean }) {
     renderer?.stop();
 
     stage.scene.enableBVH = settings.enableBVH;
-    renderer = new Pathtracer(stage);
+    switch (settings.mode) {
+        case renderModes.Pathtracer:
+            renderer = new Pathtracer(stage);
+            break;
+        case renderModes.PathtracerNPR:
+            renderer = new PathtracerNPR(stage);
+            break;
+    }
 }
 
-const renderModes = { pathtracer: "pathtracer" };
+const renderModes = { Pathtracer: "pathtracer", PathtracerNPR: "pathtracerNPR" };
 let renderModeController = gui.add(settings, "mode", renderModes).name("Render Mode");
 renderModeController.onChange((value) => {
     settings.mode = value;
     setRenderer(settings);
 });
-
-// const enableBVHController = gui.add(settings, "enableBVH").name("Enable BVH");
-// enableBVHController.onChange((value) => {
-//     settings.enableBVH = value;
-//     setRenderer(settings);
-// });
 
 setRenderer(settings);
