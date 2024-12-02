@@ -354,8 +354,8 @@ export class Pathtracer extends renderer.Renderer {
 
         let resetAccumulation = this.camera.updated;
 
-        // run cloth simulation every 20 frames
-        if (this.frameCount % 20 === 0) {
+        // run cloth simulation every 10 frames
+        if (this.frameCount % 10 === 0) {
             const encoder = renderer.device.createCommandEncoder();
 
             const computePass = encoder.beginComputePass();
@@ -381,7 +381,7 @@ export class Pathtracer extends renderer.Renderer {
             const vertexData = stagingBuffer.getMappedRange();
             const vertexHostBuffer = new Float32Array(vertexData);
 
-            this.scene.setVertexDataFromBuffer(vertexHostBuffer);
+            this.scene.setClothVertexDataFromBuffer(vertexHostBuffer);
             stagingBuffer.unmap();
             this.scene.createVertexBuffer();
             this.scene.rebuildBVH();

@@ -625,6 +625,7 @@ export class Scene {
         });
 
         this.createGeometryBuffer();
+        this.createTriangleBuffer();
         this.createBVHBuffer();
         this.createBindGroups();
     }
@@ -959,15 +960,15 @@ export class Scene {
         });
     };
 
-    setVertexDataFromBuffer = (buffer: Float32Array) => {
+    setClothVertexDataFromBuffer = (buffer: Float32Array) => {
+        const originalLength = this.vertexDataArray.length;
         const numElems = buffer.length / 12;
-        this.vertexDataArray = [];
         for (let i = 0; i < numElems; i++) {
-            this.vertexDataArray.push({
+            this.vertexDataArray[originalLength - numElems + i] = {
                 position: vec3.create(buffer[i * 12], buffer[i * 12 + 1], buffer[i * 12 + 2]),
                 normal: vec3.create(buffer[i * 12 + 4], buffer[i * 12 + 5], buffer[i * 12 + 6]),
                 uv: vec2.create(buffer[i * 8], buffer[i * 12 + 9]),
-            });
+            };
         }
     };
 
