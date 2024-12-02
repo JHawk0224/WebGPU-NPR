@@ -109,6 +109,16 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
     }
 }
 
+fn computeTangentBasis(normal: vec3f) -> vec3f {
+    // Find a vector that is not parallel to normal
+    var up = vec3f(0.0, 1.0, 0.0);
+    if (abs(normal.x) < 0.999) {
+        up = vec3f(1.0, 0.0, 0.0);
+    }
+    let tangent = normalize(cross(up, normal));
+    return tangent;
+}
+
 fn scatterRay(index: u32) {
     let pathSegment = &pathSegments.segments[index];
     let intersect = &intersections.intersections[index];
@@ -136,6 +146,25 @@ fn scatterRay(index: u32) {
     let normal = intersect.surfaceNormal;
     let uv = intersect.uv;
 
+    // Adjust the normal using the normal map if available
+    var adjustedNormal = normal;
+    if (material.normalTextureIndex >= 0) {
+        let texDesc = textureDescriptors[material.normalTextureIndex];
+        let normalMapValue = textureLookup(texDesc, uv.x, uv.y, &textures);
+
+        let sampledNormal = normalMapValue * 2.0 - vec3f(1.0);
+
+        let tangent = computeTangentBasis(normal);
+        let bitangent = cross(normal, tangent);
+
+        // Transform sampledNormal from tangent space to world space
+        adjustedNormal = normalize(
+            sampledNormal.x * tangent +
+            sampledNormal.y * bitangent +
+            sampledNormal.z * normal
+        );
+    }
+
     var baseColor = material.baseColorFactor.rgb;
     if (material.baseColorTextureIndex >= 0) {
         let texDesc = textureDescriptors[material.baseColorTextureIndex];
@@ -158,9 +187,9 @@ fn scatterRay(index: u32) {
         pathSegment.color *= attenuation;
         return;
     } else if (material.matType == 1) { // Lambertian
-        scattered = scatterLambertian(index, hitPoint, dirIn, normal);
-        bsdf = evalLambertian(dirIn, scattered.ray.direction, normal, baseColor);
-        pdf = pdfLambertian(dirIn, scattered.ray.direction, normal);
+        scattered = scatterLambertian(index, hitPoint, dirIn, adjustedNormal);
+        bsdf = evalLambertian(dirIn, scattered.ray.direction, adjustedNormal, baseColor);
+        pdf = pdfLambertian(dirIn, scattered.ray.direction, adjustedNormal);
 
         if (pdf == 0.0) {
             attenuation = vec3f(1.0);
@@ -169,9 +198,9 @@ fn scatterRay(index: u32) {
             attenuation = bsdf / pdf;
         }
     } else if (material.matType == 2) { // Metal
-        scattered = scatterMetal(index, hitPoint, dirIn, normal, material.roughnessFactor);
-        // bsdf = evalMetal(dirIn, scattered.ray.direction, normal, baseColor, material.metallicFactor); // TODO: add metallic
-        bsdf = evalMetal(dirIn, scattered.ray.direction, normal, baseColor);
+        scattered = scatterMetal(index, hitPoint, dirIn, adjustedNormal, material.roughnessFactor);
+        // bsdf = evalMetal(dirIn, scattered.ray.direction, adjustedNormal, baseColor, material.metallicFactor); // TODO: add metallic
+        bsdf = evalMetal(dirIn, scattered.ray.direction, adjustedNormal, baseColor);
 
         attenuation = bsdf;
     }

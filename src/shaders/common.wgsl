@@ -84,6 +84,7 @@ struct Material {
     roughnessFactor: f32,
     baseColorTextureIndex: i32,  // index into textureDescriptors
     emissiveTextureIndex: i32,   // index into textureDescriptors
+    normalTextureIndex: i32,     // index into textureDescriptors
     matType: i32,                // material type (0: Emissive, 1: Lambertian, 2: Metal)
 };
 

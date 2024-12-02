@@ -46,8 +46,10 @@ export interface MaterialData {
     roughnessFactor: number;
     emissiveFactor: number[];
     emissiveTextureIndex: number;
+    normalTextureIndex: number;
     matType: number;
 }
+
 export interface BVHNodeData {
     boundsMin: Vec3;
     boundsMax: Vec3;
@@ -359,6 +361,7 @@ export class Scene {
                 const baseColorTextureIndex = pbr.baseColorTexture?.index ?? -1;
                 const emissiveFactor = material.emissiveFactor ?? [0, 0, 0];
                 const emissiveTextureIndex = material.emissiveTexture?.index ?? -1;
+                const normalTextureIndex = material.normalTexture?.index ?? -1;
 
                 let matType = 1; // Default to Lambertian
                 if (emissiveFactor.some((v) => v !== 0) || emissiveTextureIndex !== -1) {
@@ -369,9 +372,10 @@ export class Scene {
 
                 const adjustedBaseColorTextureIndex =
                     baseColorTextureIndex >= 0 ? baseColorTextureIndex + existingTextureCount : -1;
-
                 const adjustedEmissiveTextureIndex =
                     emissiveTextureIndex >= 0 ? emissiveTextureIndex + existingTextureCount : -1;
+                const adjustedNormalTextureIndex =
+                    normalTextureIndex >= 0 ? normalTextureIndex + existingTextureCount : -1;
 
                 return {
                     baseColorFactor: pbr.baseColorFactor || [1, 1, 1, 1],
@@ -380,6 +384,7 @@ export class Scene {
                     roughnessFactor: pbr.roughnessFactor ?? 1.0,
                     emissiveFactor,
                     emissiveTextureIndex: adjustedEmissiveTextureIndex,
+                    normalTextureIndex: adjustedNormalTextureIndex,
                     matType,
                 };
             })
@@ -716,7 +721,7 @@ export class Scene {
 
         // Material Buffer
         const materialsSize = this.materialDataArray.length;
-        const materialsBufferSize = materialsSize * 64;
+        const materialsBufferSize = materialsSize * 80;
         const materialHostBuffer = new ArrayBuffer(materialsBufferSize);
         const materialDataView = new DataView(materialHostBuffer);
 
@@ -734,12 +739,14 @@ export class Scene {
             offset += 4;
             materialDataView.setFloat32(offset, material.roughnessFactor, true);
             offset += 4;
-            materialDataView.setUint32(offset, material.baseColorTextureIndex, true);
+            materialDataView.setInt32(offset, material.baseColorTextureIndex, true);
             offset += 4;
-            materialDataView.setUint32(offset, material.emissiveTextureIndex, true);
+            materialDataView.setInt32(offset, material.emissiveTextureIndex, true);
             offset += 4;
-            materialDataView.setUint32(offset, material.matType, true);
+            materialDataView.setInt32(offset, material.normalTextureIndex, true);
             offset += 4;
+            materialDataView.setInt32(offset, material.matType, true);
+            offset += 16;
         }
 
         const materialBuffer = device.createBuffer({
@@ -883,18 +890,18 @@ export class Scene {
     };
 
     addCustomObjects = () => {
-
         const materialsLength = this.materialDataArray.length;
         const objectsLength = this.geomDataArray.length;
-        
+
         // white lambertian
         this.materialDataArray.push({
-            baseColorFactor: [0.98, 0.94, 0.90, 1],
+            baseColorFactor: [0.98, 0.94, 0.9, 1],
             baseColorTextureIndex: -1,
             metallicFactor: 0,
             roughnessFactor: 0,
             emissiveFactor: [0, 0, 0],
             emissiveTextureIndex: -1,
+            normalTextureIndex: -1,
             matType: 1,
         });
 
@@ -906,6 +913,7 @@ export class Scene {
             roughnessFactor: 0,
             emissiveFactor: [0, 0, 0],
             emissiveTextureIndex: -1,
+            normalTextureIndex: -1,
             matType: 1,
         });
 
@@ -917,6 +925,7 @@ export class Scene {
             roughnessFactor: 0,
             emissiveFactor: [0, 0, 0],
             emissiveTextureIndex: -1,
+            normalTextureIndex: -1,
             matType: 1,
         });
 
@@ -928,6 +937,7 @@ export class Scene {
             roughnessFactor: 0,
             emissiveFactor: [1, 1, 1],
             emissiveTextureIndex: -1,
+            normalTextureIndex: -1,
             matType: 0,
         });
 
@@ -939,6 +949,7 @@ export class Scene {
             roughnessFactor: 0,
             emissiveFactor: [0, 0, 0],
             emissiveTextureIndex: -1,
+            normalTextureIndex: -1,
             matType: 1,
         });
 
@@ -950,6 +961,7 @@ export class Scene {
             roughnessFactor: 0,
             emissiveFactor: [0, 0, 0],
             emissiveTextureIndex: -1,
+            normalTextureIndex: -1,
             matType: 2,
         });
 
@@ -961,6 +973,7 @@ export class Scene {
             roughnessFactor: 0,
             emissiveFactor: [0, 0, 0],
             emissiveTextureIndex: -1,
+            normalTextureIndex: -1,
             matType: 2,
         });
 
@@ -972,6 +985,7 @@ export class Scene {
             roughnessFactor: 0,
             emissiveFactor: [0, 0, 0],
             emissiveTextureIndex: -1,
+            normalTextureIndex: -1,
             matType: 2,
         });
 
@@ -1094,11 +1108,9 @@ export class Scene {
         const numMirrors = 6;
         for (let i = 0; i <= numMirrors; i++) {
             scaleMat4 = mat4.scaling([0.05, 10, 3]);
-            const rotAngle = (i * Math.PI * 2 / 6) / numMirrors - Math.PI / 6;
-            translateMat4 = mat4.translation(vec3.create(100, 
-                                                        0, 
-                                                        -2 * Math.sin(rotAngle)));
-            const rotAngle2 = (i * Math.PI * 2 / 2) / numMirrors - Math.PI / 2;
+            const rotAngle = (i * Math.PI * 2) / 6 / numMirrors - Math.PI / 6;
+            translateMat4 = mat4.translation(vec3.create(100, 0, -2 * Math.sin(rotAngle)));
+            const rotAngle2 = (i * Math.PI * 2) / 2 / numMirrors - Math.PI / 2;
             rotateMat4 = mat4.rotationY(rotAngle2);
             transformMat4 = mat4.mul(mat4.mul(rotateMat4, scaleMat4), translateMat4);
             this.geomDataArray.push({
