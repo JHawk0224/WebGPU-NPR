@@ -355,10 +355,10 @@ export class Pathtracer extends renderer.Renderer {
         let resetAccumulation = this.camera.updated;
 
         // run cloth simulation every 10 frames
-        if (this.frameCount % 1 === 0) {
+        if (this.frameCount % 400 === 0) {
             const encoder = renderer.device.createCommandEncoder();
 
-                for (let i = 0; i < 100; i++) {
+                for (let i = 0; i < 50; i++) {
 
                     const computePass = encoder.beginComputePass();
                     computePass.setPipeline(this.clothSimulator.computePipeline);
