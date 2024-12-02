@@ -3,25 +3,6 @@ const TWO_PI = 6.2831853071795864769252867665590057683943;
 const SQRT_OF_ONE_THIRD = 0.5773502691896257645091487805019574556476;
 const EPSILON = 0.0001;
 
-struct Light {
-    pos : vec3f,
-    color : vec3f
-}
-
-struct LightSet {
-    numLights : u32,
-    lights : array<Light>
-}
-
-struct Cluster {
-    numLights : u32,
-    lights : array<u32, ${maxNumLightsPerCluster}>
-}
-
-struct ClusterSet {
-    clusters : array<Cluster, ${numClusterX} * ${numClusterY} * ${numClusterZ}>
-}
-
 struct Ray
 {
     origin : vec3f,
@@ -155,41 +136,6 @@ struct StyleContext {
     params : vec4<i32>,
     position : vec3<f32>,
     normal : vec3<f32>,
-}
-
-// this special attenuation function ensures lights don't affect geometry outside the maximum light radius
-fn rangeAttenuation(distance: f32) -> f32 {
-    return clamp(1.f - pow(distance / ${lightRadius}, 4.f), 0.f, 1.f) / (distance * distance);
-}
-
-fn calculateLightContrib(light: Light, posWorld: vec3f, nor: vec3f) -> vec3f {
-    let vecToLight = light.pos - posWorld;
-    let distToLight = length(vecToLight);
-
-    let lambert = max(dot(nor, normalize(vecToLight)), 0.f);
-    return light.color * lambert * rangeAttenuation(distToLight);
-}
-
-fn calculateLightContribToonShading(light: Light, posWorld: vec3f, viewDir: vec3f, nor: vec3f, ambientLight: vec3f) -> vec3f {
-    let vecToLight = light.pos - posWorld;
-    let distToLight = length(vecToLight);
-
-    let ndotl = dot(nor, normalize(vecToLight));
-
-    let rimIntensity = smoothstep(0.716 - 0.01, 0.716 + 0.01, (1.0 - dot(viewDir, nor)) * pow(ndotl, 0.1));
-    let rim = rimIntensity * vec3f(1.0);
-
-    if (ndotl > 0) {
-        let intensity = smoothstep(0.48, 0.52, ndotl);
-
-        return light.color * rangeAttenuation(distToLight) * intensity * (vec3f(1.0) + ambientLight + rim);
-    }
-    return light.color * rangeAttenuation(distToLight) * ambientLight;
-}
-
-fn applyTransform(p: vec4<f32>, transform: mat4x4<f32>) -> vec3<f32> {
-    let transformed = transform * p;
-    return transformed.xyz / transformed.w;
 }
 
 // cannot use WebGPU built in Textures since we need all loaded in memory
