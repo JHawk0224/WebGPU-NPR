@@ -193,6 +193,7 @@ fn scatterRay(index: u32) {
     sc.params = vec4i(i32(intersect.materialId), intersect.objectId, pathSegment.pathPrefix, 0);
     sc.position = scattered.ray.origin;
     sc.normal = intersect.surfaceNormal;
+    sc.rayDir = dirIn;
 
     attenuation = stylize(sc, attenuation);
 

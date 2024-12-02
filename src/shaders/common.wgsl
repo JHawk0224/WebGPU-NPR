@@ -136,6 +136,7 @@ struct StyleContext {
     params : vec4<i32>,
     position : vec3<f32>,
     normal : vec3<f32>,
+    rayDir : vec3<f32>,
 }
 
 // cannot use WebGPU built in Textures since we need all loaded in memory
