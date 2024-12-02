@@ -105,6 +105,7 @@ fn computeIntersections(@builtin(global_invocation_id) globalIdx: vec3u) {
             intersections.intersections[index].objectId = geoms.geoms[hitGeomIndex].objectId;
             intersections.intersections[index].surfaceNormal = closestHit.normal;
             intersections.intersections[index].uv = closestHit.uv;
+            intersections.intersections[index].bvhNodeIndex = closestHit.bvhNodeIndex;
         }
     }
 }
@@ -223,6 +224,7 @@ fn scatterRay(index: u32) {
     sc.position = scattered.ray.origin;
     sc.normal = intersect.surfaceNormal;
     sc.rayDir = dirIn;
+    sc.bvhNodeIndex = intersect.bvhNodeIndex;
 
     attenuation = stylize(sc, attenuation);
 

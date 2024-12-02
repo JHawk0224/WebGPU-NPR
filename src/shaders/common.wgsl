@@ -94,7 +94,8 @@ struct Intersection
     t : f32,
     uv : vec2<f32>,
     materialId : i32, // materialId == -1 means no intersection
-    objectId : i32
+    objectId : i32,
+    bvhNodeIndex : i32,
 };
 
 struct Intersections
@@ -109,7 +110,8 @@ struct HitInfo
     normal : vec3<f32>,
     outside : u32,
     uv : vec2<f32>,
-    materialId : i32
+    materialId : i32,
+    bvhNodeIndex : i32,
 }
 
 struct CameraUniforms {
@@ -138,6 +140,7 @@ struct StyleContext {
     position : vec3<f32>,
     normal : vec3<f32>,
     rayDir : vec3<f32>,
+    bvhNodeIndex : i32,
 }
 
 // cannot use WebGPU built in Textures since we need all loaded in memory

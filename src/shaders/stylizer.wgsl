@@ -47,6 +47,8 @@ fn stylize (sc : StyleContext, samples : vec3f) -> vec3f
         return stylizeToon(sc, samples);
     } else if (sc.params.z == -7) {
         return stylizePerlin(sc, samples);
+    } else if (sc.params.z == -8) {
+        return stylizeBvh(sc, samples);
     }
 
     // undefined, apply identity stylization
@@ -215,4 +217,9 @@ fn stylizePerlin(sc : StyleContext, samples : vec3f) -> vec3f
     }
 
     return vec3f(0.0, 0.3, 1.0);
+}
+
+fn stylizeBvh(sc : StyleContext, samples : vec3f) -> vec3f 
+{
+    return vec3f(f32(sc.bvhNodeIndex) / (60.0 * 255.0));
 }

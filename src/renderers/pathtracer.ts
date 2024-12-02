@@ -91,7 +91,7 @@ export class Pathtracer extends renderer.Renderer {
 
         this.intersectionsStorageBuffer = renderer.device.createBuffer({
             label: "intersections",
-            size: 32 * shaders.constants.maxResolutionWidth * shaders.constants.maxResolutionHeight,
+            size: 48 * shaders.constants.maxResolutionWidth * shaders.constants.maxResolutionHeight,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
