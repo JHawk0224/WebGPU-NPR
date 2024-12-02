@@ -355,39 +355,42 @@ export class Pathtracer extends renderer.Renderer {
         let resetAccumulation = this.camera.updated;
 
         // run cloth simulation every 10 frames
-        if (this.frameCount % 10 === 0) {
+        if (this.frameCount % 1 === 0) {
             const encoder = renderer.device.createCommandEncoder();
 
-            const computePass = encoder.beginComputePass();
-            computePass.setPipeline(this.clothSimulator.computePipeline);
-            computePass.setBindGroup(0, this.clothSimulator.bindGroup);
-            computePass.setBindGroup(1, this.scene.geometryBindGroup!);
-            const workgroupSize = 256;
-            const numVertices = this.clothSimulator.clothMesh.positionsArray.length;
-            computePass.dispatchWorkgroups(Math.ceil(numVertices / workgroupSize));
-            computePass.end();
+                for (let i = 0; i < 100; i++) {
 
-            const vertexSize = 3 * 4 * 4;
-            const clothVertexCount = this.clothSimulator.clothMesh.positionsArray.length;
-            const clothBufferSize = clothVertexCount * vertexSize;
-            const stagingBuffer = renderer.device.createBuffer({
-                size: clothBufferSize,
-                usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-            });
-            encoder.copyBufferToBuffer(this.clothSimulator.vertexBuffer, 0, stagingBuffer, 0, clothBufferSize);
+                    const computePass = encoder.beginComputePass();
+                    computePass.setPipeline(this.clothSimulator.computePipeline);
+                    computePass.setBindGroup(0, this.clothSimulator.bindGroup);
+                    computePass.setBindGroup(1, this.scene.geometryBindGroup!);
+                    const workgroupSize = 256;
+                    const numVertices = this.clothSimulator.clothMesh.positionsArray.length;
+                    computePass.dispatchWorkgroups(Math.ceil(numVertices / workgroupSize));
+                    computePass.end();
+                }
+                const vertexSize = 3 * 4 * 4;
+                const clothVertexCount = this.clothSimulator.clothMesh.positionsArray.length;
+                const clothBufferSize = clothVertexCount * vertexSize;
+                const stagingBuffer = renderer.device.createBuffer({
+                    size: clothBufferSize,
+                    usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+                });
+                encoder.copyBufferToBuffer(this.clothSimulator.vertexBuffer, 0, stagingBuffer, 0, clothBufferSize);
 
-            renderer.device.queue.submit([encoder.finish()]);
+                renderer.device.queue.submit([encoder.finish()]);
 
-            await stagingBuffer.mapAsync(GPUMapMode.READ);
-            const vertexData = stagingBuffer.getMappedRange();
-            const vertexHostBuffer = new Float32Array(vertexData);
+                await stagingBuffer.mapAsync(GPUMapMode.READ);
+                const vertexData = stagingBuffer.getMappedRange();
+                const vertexHostBuffer = new Float32Array(vertexData);
 
-            this.scene.setClothVertexDataFromBuffer(vertexHostBuffer);
-            stagingBuffer.unmap();
-            this.scene.createVertexBuffer();
-            this.scene.rebuildBVH();
+                this.scene.setClothVertexDataFromBuffer(vertexHostBuffer);
+                stagingBuffer.unmap();
+                this.scene.createVertexBuffer();
+                this.scene.rebuildBVH();
 
-            resetAccumulation = true;
+                resetAccumulation = true;
+            
         }
 
         const encoder = renderer.device.createCommandEncoder();

@@ -8,7 +8,7 @@ const gravity: vec3<f32> = vec3<f32>(0.0, -9.81, 0.0);
 const timeStep: f32 = 0.016; // 60 FPS
 const damping: f32 = 0.99;
 
-const constraintIterations: u32 = 10;
+const constraintIterations: u32 = 9;
 
 const restLength: f32 = 0.1;
 const stiffness: f32 = 10.0;
@@ -124,6 +124,9 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         position = pos;
     }
 
+    // Enforce self-collision
+    enforceSelfCollision(idx, &position);
+
     // Pin the top row of vertices
     if (idx < uniforms.gridWidth) {
         position = vertices.vertices[idx].position;
@@ -149,29 +152,50 @@ fn resolveCubeCollision(position: ptr<function, vec3<f32>>, velocity: ptr<functi
 
     // Check and resolve collisions
     if (pos.x < cubeMin.x) {
-        pos.x = cubeMin.x - 0.0001; // Prevent sticking to the wall
+        pos.x = cubeMin.x - 0.05; // Prevent sticking to the wall
         (*velocity).x *= -0.5; // Reverse and dampen velocity
     } else if (pos.x > cubeMax.x) {
-        pos.x = cubeMax.x + 0.0001; // Prevent sticking to the wall
+        pos.x = cubeMax.x + 0.05; // Prevent sticking to the wall
         (*velocity).x *= -0.5;
     }
 
     if (pos.y < cubeMin.y) {
-        pos.y = cubeMin.y - 0.0001;
+        pos.y = cubeMin.y - 0.05;
         (*velocity).y *= -0.5;
     } else if (pos.y > cubeMax.y) {
-        pos.y = cubeMax.y + 0.0001;
+        pos.y = cubeMax.y + 0.05;
         (*velocity).y *= -0.5 ;
     }
 
     if (pos.z < cubeMin.z) {
-        pos.z = cubeMin.z - 0.0001;
+        pos.z = cubeMin.z - 0.05;
         (*velocity).z *= -0.5;
     } else if (pos.z > cubeMax.z) {
-        pos.z = cubeMax.z + 0.0001;
+        pos.z = cubeMax.z + 0.05;
         (*velocity).z *= -0.5;
     }
 
     *position = pos;
 }
 
+fn enforceSelfCollision(vertexIdx: u32, position: ptr<function, vec3<f32>>) {
+    for (var neighborOffset = -2; neighborOffset <= 2; neighborOffset++) {
+        if (neighborOffset == 0){
+            continue;
+        }
+
+        let neighborIdx = i32(vertexIdx) + neighborOffset;
+        if (neighborIdx < 0 || u32(neighborIdx) >= arrayLength(&vertices.vertices)) {
+            continue;
+        }
+
+        let neighborPos = vertices.vertices[u32(neighborIdx)].position;
+        let delta = *position - neighborPos;
+        let dist = length(delta);
+
+        if (dist < restLength) {
+            let correction = (restLength - dist) * normalize(delta);
+            *position += correction * 0.5;
+        }
+    }
+}
