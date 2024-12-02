@@ -361,6 +361,7 @@ export class Pathtracer extends renderer.Renderer {
             const computePass = encoder.beginComputePass();
             computePass.setPipeline(this.clothSimulator.computePipeline);
             computePass.setBindGroup(0, this.clothSimulator.bindGroup);
+            computePass.setBindGroup(1, this.scene.geometryBindGroup!);
             const workgroupSize = 256;
             const numVertices = this.clothSimulator.clothMesh.positionsArray.length;
             computePass.dispatchWorkgroups(Math.ceil(numVertices / workgroupSize));

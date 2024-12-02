@@ -19,16 +19,27 @@ const stiffness: f32 = 10.0;
 @group(0) @binding(2) var<storage, read_write> velocities: array<vec3<f32>>;
 
 
+@group(1) @binding(0) var<storage, read> sceneVertices : Vertices;
+@group(1) @binding(1) var<storage, read> tris : Triangles;
+@group(1) @binding(2) var<storage, read> geoms : Geoms;
+@group(1) @binding(3) var<storage, read> bvhNodes : BVHNodes;
+
+
+
+
+
+// Solves a distance constraint between two points
 fn solveDistanceConstraint(p1: ptr<function, vec3<f32>>, p2: ptr<function, vec3<f32>>, restLength: f32) {
     let delta = *p2 - *p1;
     let deltaLength = length(delta);
-    
+
     if (deltaLength > 0.0001) { // Avoid division by zero
         let correction = delta * (1.0 - restLength / deltaLength);
         *p1 += correction * 0.5;
         *p2 -= correction * 0.5;
     }
 }
+
 
 fn calculateNormal(p0: vec3<f32>, p1: vec3<f32>, p2: vec3<f32>) -> vec3<f32> {
     let edge1 = p1 - p0;
@@ -38,6 +49,7 @@ fn calculateNormal(p0: vec3<f32>, p1: vec3<f32>, p2: vec3<f32>) -> vec3<f32> {
 
 
 
+// Main simulation function
 @compute @workgroup_size(256)
 fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let idx: u32 = GlobalInvocationID.x;
@@ -45,73 +57,74 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         return;
     }
 
-    // Initial position update with velocity and external forces
+    // Locate the cube
+    var cube: Geom;
+    var foundCube = false;
+
+    for (var i = 0u; i < geoms.geomsSize; i++) {
+        if (geoms.geoms[i].objectId == -1 && geoms.geoms[i].bvhRootNodeIdx == -1) {
+            cube = geoms.geoms[i];
+            foundCube = true;
+            break;
+        }
+    }
+
+    // Initialize position and velocity
     var position = vertices.vertices[idx].position;
     var velocity = velocities[idx];
-    
-    // Apply external forces
+
+    // Apply gravity and damping
     velocity += gravity * timeStep;
     velocity *= damping;
-    
-    // Update position
+
+    // Predict position
     var predictedPos = position + velocity * timeStep;
-    
-    // Store original position for velocity update
-    let originalPos = position;
+
+    // Check and resolve collisions
+    if (foundCube) {
+        resolveCubeCollision(&predictedPos, &velocity, cube);
+    }
+
+    // Update position and apply constraints
+    var originalPos = position;
     position = predictedPos;
 
-    // Multiple iterations of constraint solving
     for (var iter: u32 = 0u; iter < constraintIterations; iter++) {
         let x = idx % uniforms.gridWidth;
         let y = idx / uniforms.gridWidth;
-        
-        var pos = position;
-        
-        // Calculate rest lengths based on grid spacing
-        let restLength = length(vertices.vertices[1].position - vertices.vertices[0].position);
 
-        // Horizontal constraints
+        var pos = position;
+
+        // Apply horizontal constraints
         if (x > 0u) {
             let leftIdx = idx - 1u;
             var leftPos = vertices.vertices[leftIdx].position;
             solveDistanceConstraint(&pos, &leftPos, restLength);
-            if (leftIdx >= uniforms.gridWidth) { // Don't update pinned vertices
-                vertices.vertices[leftIdx].position = leftPos;
-            }
         }
-        
+
         if (x < uniforms.gridWidth - 1u) {
             let rightIdx = idx + 1u;
             var rightPos = vertices.vertices[rightIdx].position;
             solveDistanceConstraint(&pos, &rightPos, restLength);
-            if (rightIdx >= uniforms.gridWidth) {
-                vertices.vertices[rightIdx].position = rightPos;
-            }
         }
 
-        // Vertical constraints
+        // Apply vertical constraints
         if (y > 0u) {
             let upIdx = idx - uniforms.gridWidth;
             var upPos = vertices.vertices[upIdx].position;
             solveDistanceConstraint(&pos, &upPos, restLength);
-            if (upIdx >= uniforms.gridWidth) {
-                vertices.vertices[upIdx].position = upPos;
-            }
         }
-        
+
         if (y < uniforms.gridWidth - 1u) {
             let downIdx = idx + uniforms.gridWidth;
             var downPos = vertices.vertices[downIdx].position;
             solveDistanceConstraint(&pos, &downPos, restLength);
-            if (downIdx >= uniforms.gridWidth) {
-                vertices.vertices[downIdx].position = downPos;
-            }
         }
 
         position = pos;
     }
 
-    // Pin constraints for top row
+    // Pin the top row of vertices
     if (idx < uniforms.gridWidth) {
         position = vertices.vertices[idx].position;
         velocity = vec3<f32>(0.0);
@@ -120,54 +133,45 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     // Update velocity based on position change
     velocity = (position - originalPos) / timeStep;
 
-    // Calculate normal
-    let x = idx % uniforms.gridWidth;
-    let y = idx / uniforms.gridWidth;
-    var normal = vec3<f32>(0.0, 0.0, 0.0);
-    var normalCount = 0u;
-
-    // Contribute to normal from surrounding triangles
-    if (x > 0u && y > 0u) {
-        let p0 = position;
-        let p1 = vertices.vertices[idx - 1u].position;
-        let p2 = vertices.vertices[idx - uniforms.gridWidth].position;
-        normal += calculateNormal(p0, p1, p2);
-        normalCount += 1u;
-    }
-
-    if (x < uniforms.gridWidth - 1u && y > 0u) {
-        let p0 = position;
-        let p1 = vertices.vertices[idx - uniforms.gridWidth].position;
-        let p2 = vertices.vertices[idx + 1u].position;
-        normal += calculateNormal(p0, p1, p2);
-        normalCount += 1u;
-    }
-
-    if (x > 0u && y < uniforms.gridWidth - 1u) {
-        let p0 = position;
-        let p1 = vertices.vertices[idx + uniforms.gridWidth].position;
-        let p2 = vertices.vertices[idx - 1u].position;
-        normal += calculateNormal(p0, p1, p2);
-        normalCount += 1u;
-    }
-
-    if (x < uniforms.gridWidth - 1u && y < uniforms.gridWidth - 1u) {
-        let p0 = position;
-        let p1 = vertices.vertices[idx + 1u].position;
-        let p2 = vertices.vertices[idx + uniforms.gridWidth].position;
-        normal += calculateNormal(p0, p1, p2);
-        normalCount += 1u;
-    }
-
-    if (normalCount > 0u) {
-        normal = normalize(normal / f32(normalCount));
-    } else {
-        normal = vec3<f32>(0.0, 1.0, 0.0);
-    }
-
-    // Store final results
+    // Update buffers
     previousPositions[idx] = vertices.vertices[idx].position;
     vertices.vertices[idx].position = position;
-    vertices.vertices[idx].normal = normal;
     velocities[idx] = velocity;
 }
+
+// Resolves collisions with the cube
+fn resolveCubeCollision(position: ptr<function, vec3<f32>>, velocity: ptr<function, vec3<f32>>, cube: Geom) {
+    // Cube bounds assuming identity transform (unit cube centered at origin)
+    let cubeMin = vec3<f32>(-0.5, -0.5, -0.5);
+    let cubeMax = vec3<f32>(0.5, 0.5, 0.5);
+
+    var pos = *position;
+
+    // Check and resolve collisions
+    if (pos.x < cubeMin.x) {
+        pos.x = cubeMin.x - 0.0001; // Prevent sticking to the wall
+        (*velocity).x *= -0.5; // Reverse and dampen velocity
+    } else if (pos.x > cubeMax.x) {
+        pos.x = cubeMax.x + 0.0001; // Prevent sticking to the wall
+        (*velocity).x *= -0.5;
+    }
+
+    if (pos.y < cubeMin.y) {
+        pos.y = cubeMin.y - 0.0001;
+        (*velocity).y *= -0.5;
+    } else if (pos.y > cubeMax.y) {
+        pos.y = cubeMax.y + 0.0001;
+        (*velocity).y *= -0.5 ;
+    }
+
+    if (pos.z < cubeMin.z) {
+        pos.z = cubeMin.z - 0.0001;
+        (*velocity).z *= -0.5;
+    } else if (pos.z > cubeMax.z) {
+        pos.z = cubeMax.z + 0.0001;
+        (*velocity).z *= -0.5;
+    }
+
+    *position = pos;
+}
+

@@ -1,7 +1,9 @@
 import * as shaders from "../shaders/shaders";
 import * as renderer from "../renderer";
 import { vec3, vec2, Vec3 } from "wgpu-matrix";
-import { VertexData } from "./scene";
+import { VertexData, Scene } from "./scene";
+
+
 
 export class ClothMesh {
     width: number;
@@ -69,6 +71,12 @@ export class ClothSimulator {
     velocityBuffer!: GPUBuffer;
     uniformBuffer!: GPUBuffer;
     indexBuffer!: GPUBuffer;
+
+
+    
+    geometryBindGroupLayout!: GPUBindGroupLayout;
+    geometryBindGroup!: GPUBindGroup;
+
     bindGroup!: GPUBindGroup;
     bindGroupLayout!: GPUBindGroupLayout;
     computePipeline!: GPUComputePipeline;
@@ -134,6 +142,10 @@ export class ClothSimulator {
         });
         new Uint32Array(this.indexBuffer.getMappedRange()).set(indexData);
         this.indexBuffer.unmap();
+
+
+
+
     }
 
     createBindGroup() {
@@ -182,16 +194,49 @@ export class ClothSimulator {
                 { binding: 0, resource: { buffer: this.vertexBuffer } },
                 { binding: 1, resource: { buffer: this.previousPositionBuffer } },
                 { binding: 2, resource: { buffer: this.velocityBuffer } },
-                { binding: 3, resource: { buffer: this.uniformBuffer } },
+                { binding: 3, resource: { buffer: this.uniformBuffer } },            ],
+        });
+
+
+        this.geometryBindGroupLayout = renderer.device.createBindGroupLayout({
+            label: "geometry bind group layout",
+            entries: [
+                // Vertex buffer
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                // Triangle buffer
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                // Geom buffer
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                // BVH nodes
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
             ],
         });
+
+
+
     }
 
     createComputePipeline() {
         this.computePipeline = renderer.device.createComputePipeline({
             label: "cloth simulation compute pipeline",
             layout: renderer.device.createPipelineLayout({
-                bindGroupLayouts: [this.bindGroupLayout],
+                bindGroupLayouts: [this.bindGroupLayout, this.geometryBindGroupLayout],
             }),
             compute: {
                 module: renderer.device.createShaderModule({
