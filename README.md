@@ -42,6 +42,10 @@ Follow these steps to install and view the project:
 
 ### Pathtracer
 
+|![Airplane reflections](img/pathtrace_plane.JPG)|
+|:--:|
+|Reflections of a Red Airplane|
+
 Our pathtracer consists of multiple compute shader passes and a single WebGPU render pass. For each frame, we 
 1. generate camera rays
 2. perform ray-scene intersection tests
@@ -52,13 +56,15 @@ Our pathtracer consists of multiple compute shader passes and a single WebGPU re
 
 Steps 1 through 5 occur as compute shader passes, and step 6 is a render pass on the triangulated screen-space.
 
-We utilize stochastic sampled anti-aliasing in camera ray generation stage. Ray-scene intersections were accelerated using bounding volume hierarchy. Rendered frame accumulation resets on any camera movement.
+We utilize stochastic sampled anti-aliasing in camera ray generation stage. Ray-scene intersections were accelerated using a bounding volume hierarchy. Rendered frame accumulation resets on any camera movement.
 
 Note that each frame is equivalent to taking a single-sample monte carlo estimate of the rendering equation for the scene. The end result of accumulating indefinitely given absence of camera movement is essentially allowing us to average out N frames of such estimates, leading to a quick and progressive convergence.
 
 ### Non-Photorealistic Rendering
 
 Our pathtracer supports two rendering modes: regular pathtracer and pathtracer with non-photorealistic rendering (NPR). Based on a [SIGGRAPH 2024 paper](http://cv.rexwe.st/pdf/srfoe.pdf), the NPR mode performs `stylize` function on every material shader invocation.
+
+
 
 ### Cloth Simulation
 
@@ -76,3 +82,4 @@ Our pathtracer supports two rendering modes: regular pathtracer and pathtracer w
 - [stats.js](https://github.com/mrdoob/stats.js)
 - [wgpu-matrix](https://github.com/greggman/wgpu-matrix)
 - [wgpu-basecode](https://github.com/CIS5650-Fall-2024/Project4-WebGPU-Forward-Plus-and-Clustered-Deferred)
+- [Halo Spartan Model](https://skfb.ly/6QVvM)

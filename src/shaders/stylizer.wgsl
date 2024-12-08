@@ -2,7 +2,7 @@ fn shouldStylize(sc : StyleContext) -> u32
 {
     // sc.params.y = objectId, z = path prefix
     // hero model .y = -1
-    if (sc.params.y != 0) {
+    if (sc.params.y > 8 || sc.params.y < 0) {
         return 0u;
     }
 
