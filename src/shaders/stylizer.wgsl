@@ -44,7 +44,8 @@ fn stylize (sc : StyleContext, samples : vec3f) -> vec3f
     } else if (sc.params.z == -5) {
         return stylizeCrossStripes(sc, samples);
     } else if (sc.params.z == -6) {
-        return stylizeToon(sc, samples);
+        return stylizeBvh(sc, samples);
+        // return stylizeToon(sc, samples);
     } else if (sc.params.z == -7) {
         return stylizePerlin(sc, samples);
     } else if (sc.params.z == -8) {
@@ -221,5 +222,5 @@ fn stylizePerlin(sc : StyleContext, samples : vec3f) -> vec3f
 
 fn stylizeBvh(sc : StyleContext, samples : vec3f) -> vec3f 
 {
-    return vec3f(f32(sc.bvhNodeIndex) / (60.0 * 255.0));
+    return vec3f(f32(pcg_hash(u32(sc.bvhNodeIndex) % 7u)) / f32(0xffffffffu), f32(pcg_hash(u32(sc.bvhNodeIndex) % 5u)) / f32(0xffffffffu), f32(pcg_hash(u32(sc.bvhNodeIndex) % 9u)) / f32(0xffffffffu));
 }

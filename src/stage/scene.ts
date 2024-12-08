@@ -558,7 +558,7 @@ export class Scene {
             }
         }
 
-        const maxTrianglesPerLeaf = 4;
+        const maxTrianglesPerLeaf = 8;
         if (end - start <= maxTrianglesPerLeaf || !recurse) {
             node.leftChild = -1;
             node.rightChild = -1;

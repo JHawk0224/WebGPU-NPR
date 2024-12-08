@@ -290,3 +290,9 @@ fn shiftIndex(invocation_id : vec3u, counter : u32) -> vec3u {
 
     return ret;
 }
+
+fn pcg_hash(input : u32) -> u32 {
+    let state = input * 747796405u + 2891336453u;
+    let word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+}
