@@ -183,10 +183,6 @@ fn scatterRay(index: u32) {
         // bsdf = evalEmissive(dirIn, pathSegment.ray.direction, intersect.surfaceNormal, emissiveColor, emissiveFactor); // TODO: Fix
 
         attenuation = bsdf;
-
-        pathSegment.remainingBounces = -1;
-        pathSegment.color *= attenuation;
-        return;
     } else if (material.matType == 1) { // Lambertian
         scattered = scatterLambertian(index, hitPoint, dirIn, adjustedNormal);
         bsdf = evalLambertian(dirIn, scattered.ray.direction, adjustedNormal, baseColor);
@@ -230,6 +226,11 @@ fn scatterRay(index: u32) {
 
     pathSegment.color *= attenuation;
 
+    if (material.matType == 0) {
+        pathSegment.remainingBounces = -1;
+        return;
+    }
+    
     if (pathSegment.remainingBounces < 0 && material.matType != 0) {
         // did not reach a light till max depth, terminate path as invalid
         pathSegment.color = vec3f(0.0);
