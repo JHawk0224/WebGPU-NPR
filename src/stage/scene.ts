@@ -520,7 +520,7 @@ export class Scene {
                             v0: indices[idx + 0],
                             v1: indices[idx + 1],
                             v2: indices[idx + 2],
-                            materialId: materialIndex >= 0 ? materialIndex + existingMaterialCount : -1,
+                            materialId: 1                        
                         });
                     }
 
@@ -537,7 +537,7 @@ export class Scene {
                     triangleCount: meshTriangleCount,
                     triangleStartIdx: meshTriangleStartIdx,
                     bvhRootNodeIdx: -1,
-                    objectId: this.geomDataArray.length,
+                    objectId: 99,
                 };
 
                 // Build BVH for this mesh (if disabled, still do box around all triangles)

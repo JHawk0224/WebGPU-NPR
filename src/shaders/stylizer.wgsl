@@ -61,7 +61,7 @@ fn stylizeContour(sc : StyleContext, samples : vec3f) -> vec3f
 {
     let ndotv = dot(sc.normal, sc.rayDir);
 
-    if (abs(ndotv) < 0.5) {
+    if (abs(ndotv) < 0.0) {
         return vec3f(0.0);
     }
 

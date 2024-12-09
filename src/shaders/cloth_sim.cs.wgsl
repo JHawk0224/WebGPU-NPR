@@ -4,11 +4,11 @@ struct Uniforms {
 
 @group(0) @binding(3) var<uniform> uniforms: Uniforms;
 
-const gravity: vec3<f32> = vec3<f32>(0.0, -9.81, 0.0);
+const gravity: vec3<f32> = vec3<f32>(0.0, -999.81, 0.0);
 const timeStep: f32 = 0.004;  // ~60 FPS
 const damping: f32 = 0.99;
-const windDirection: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0); // Hard-coded wind direction
-const windStrength: f32 = 0.0; // Hard-coded wind strength
+const windDirection: vec3<f32> = vec3<f32>(-1.0, 0.0, 0.0); // Hard-coded wind direction
+const windStrength: f32 = 15.0; // Hard-coded wind strength
 
 var<private> constraintIterations: u32 = 15u;
 const restLength: f32 = 0.1;
@@ -355,7 +355,7 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let timeStep: f32 = 0.004;
 
     // Forces and damping
-    let gravity = vec3<f32>(0.0, -9.81, 0.0);
+    let gravity = vec3<f32>(0.0, -40.81, 0.0);
     let damping = 0.99;
 
     var position = vertices.vertices[idx].position;
@@ -363,7 +363,12 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
 
     // Apply gravity and damping
     velocity += gravity * timeStep;
+
+    velocity += windDirection * windStrength * timeStep;
+
     velocity *= damping;
+
+    
 
     let originalPos = position;
     var proposedPos = position + velocity * timeStep;
@@ -452,7 +457,7 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         }
 
         // Check if inside any geom after constraints and push out
-        for (var i = 0u; i < geoms.geomsSize; i++) {
+        for (var i = 0u; i < geoms.geomsSize - 1u; i++) {
             if (isPointInsideGeom(&geoms.geoms[i], pos, &sceneVertices, &tris, &bvhNodes)) {
                 projectOutsideGeom(&pos, &geoms.geoms[i], &sceneVertices, &tris, &bvhNodes);
                 // Zero velocity after pushing out
