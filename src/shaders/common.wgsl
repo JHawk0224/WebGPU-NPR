@@ -16,7 +16,6 @@ struct PathSegment
     pixelIndex : i32,
     remainingBounces : i32,
     pathPrefix : i32,
-    appliedStyleType : i32,
 }
 
 struct PathSegments
@@ -85,8 +84,8 @@ struct Material {
     roughnessFactor: f32,
     baseColorTextureIndex: i32,  // index into textureDescriptors
     emissiveTextureIndex: i32,   // index into textureDescriptors
+    normalTextureIndex: i32,     // index into textureDescriptors
     matType: i32,                // material type (0: Emissive, 1: Lambertian, 2: Metal)
-    styleType: u32
 };
 
 struct Intersection
@@ -95,7 +94,8 @@ struct Intersection
     t : f32,
     uv : vec2<f32>,
     materialId : i32, // materialId == -1 means no intersection
-    objectId : i32
+    objectId : i32,
+    bvhNodeIndex : i32,
 };
 
 struct Intersections
@@ -110,34 +110,31 @@ struct HitInfo
     normal : vec3<f32>,
     outside : u32,
     uv : vec2<f32>,
-    materialId : i32
+    materialId : i32,
+    bvhNodeIndex : i32,
 }
 
 struct CameraUniforms {
-    viewproj : mat4x4f,
-    view : mat4x4f,
-    proj : mat4x4f,
-    projInv : mat4x4f,
     front : vec3<f32>,
     numFrames : u32,
     up : vec3<f32>,
+    counter : u32,
     right : vec3<f32>,
-    depth : f32,
-    nearFar : vec2<f32>,
+    depth : u32,
+    cameraPos : vec3<f32>,
+    seed : vec3u,
     resolution : vec2<f32>,
     pixelLength : vec2<f32>,
-    cameraPos : vec3<f32>,
-    numSamples : f32,
-    seed : vec3u,
-    counter : u32,
 }
 
 struct StyleContext {
-    // materialId, objectId, path prefix, styleType
+    // materialId, objectId, path prefix
     // currently just look at last path vertex's objectId
     params : vec4<i32>,
     position : vec3<f32>,
     normal : vec3<f32>,
+    rayDir : vec3<f32>,
+    bvhNodeIndex : i32,
 }
 
 // cannot use WebGPU built in Textures since we need all loaded in memory
@@ -286,4 +283,10 @@ fn shiftIndex(invocation_id : vec3u, counter : u32) -> vec3u {
     ret.z = z;
 
     return ret;
+}
+
+fn pcg_hash(input : u32) -> u32 {
+    let state = input * 747796405u + 2891336453u;
+    let word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
 }

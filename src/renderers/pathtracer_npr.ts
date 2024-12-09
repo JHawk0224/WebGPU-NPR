@@ -3,7 +3,7 @@ import * as shaders from "../shaders/shaders";
 import { Stage } from "../stage/stage";
 import { ClothSimulator } from "../stage/cloth";
 
-export class Pathtracer extends renderer.Renderer {
+export class PathtracerNPR extends renderer.Renderer {
     sceneUniformsBindGroupLayout: GPUBindGroupLayout;
     sceneUniformsBindGroup: GPUBindGroup;
 
@@ -209,7 +209,7 @@ export class Pathtracer extends renderer.Renderer {
             compute: {
                 module: renderer.device.createShaderModule({
                     label: "pathtracer compute shader",
-                    code: shaders.pathtracerComputeSrc,
+                    code: shaders.pathtracerComputeNPRSrc,
                 }),
                 entryPoint: "generateRay",
             },
@@ -228,7 +228,7 @@ export class Pathtracer extends renderer.Renderer {
             compute: {
                 module: renderer.device.createShaderModule({
                     label: "pathtracer compute shader",
-                    code: shaders.pathtracerComputeSrc,
+                    code: shaders.pathtracerComputeNPRSrc,
                 }),
                 entryPoint: "computeIntersections",
             },
@@ -247,7 +247,7 @@ export class Pathtracer extends renderer.Renderer {
             compute: {
                 module: renderer.device.createShaderModule({
                     label: "pathtracer compute shader",
-                    code: shaders.pathtracerComputeSrc,
+                    code: shaders.pathtracerComputeNPRSrc,
                 }),
                 entryPoint: "integrate",
             },
@@ -262,7 +262,7 @@ export class Pathtracer extends renderer.Renderer {
             compute: {
                 module: renderer.device.createShaderModule({
                     label: "pathtracer compute shader",
-                    code: shaders.pathtracerComputeSrc,
+                    code: shaders.pathtracerComputeNPRSrc,
                 }),
                 entryPoint: "finalGather",
             },
@@ -277,7 +277,7 @@ export class Pathtracer extends renderer.Renderer {
             compute: {
                 module: renderer.device.createShaderModule({
                     label: "pathtracer compute shader",
-                    code: shaders.pathtracerComputeSrc,
+                    code: shaders.pathtracerComputeNPRSrc,
                 }),
                 entryPoint: "clearTexture",
             },

@@ -210,6 +210,7 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, vertices: ptr<storage, V
     var ret: HitInfo;
     ret.dist = -1.0;
     ret.materialId = -1;
+    ret.bvhNodeIndex = -1;
 
     let ro = (mesh.inverseTransform * vec4f(r.origin, 1.0)).xyz;
     let rd = normalize((mesh.inverseTransform * vec4f(r.direction, 0.0)).xyz);
@@ -234,6 +235,7 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, vertices: ptr<storage, V
                     ret.dist = hitInfo.dist;
                     ret.materialId = hitInfo.materialId;
                     ret.uv = hitInfo.uv;
+                    ret.bvhNodeIndex = mesh.bvhRootNodeIdx;
                 }
             }
         }
@@ -268,6 +270,7 @@ fn meshIntersectionTest(mesh: ptr<storage, Geom, read>, vertices: ptr<storage, V
                             ret.dist = hitInfo.dist;
                             ret.materialId = hitInfo.materialId;
                             ret.uv = hitInfo.uv;
+                            ret.bvhNodeIndex = i32(nodeIdx);
                         }
                     }
                 } else {

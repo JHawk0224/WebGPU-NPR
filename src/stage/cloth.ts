@@ -3,8 +3,6 @@ import * as renderer from "../renderer";
 import { vec3, vec2, Vec3 } from "wgpu-matrix";
 import { VertexData, Scene } from "./scene";
 
-
-
 export class ClothMesh {
     width: number;
     height: number;
@@ -32,7 +30,7 @@ export class ClothMesh {
         // Generate vertices
         for (let y = 0; y <= this.segmentsY; y++) {
             for (let x = 0; x <= this.segmentsX; x++) {
-                const position = vec3.create(x * dx - this.width / 2, 1, y * dy - this.height / 2);
+                const position = vec3.create(x * dx - this.width / 2, 3.5, y * dy - this.height / 2);
                 const uv = vec2.create(x / this.segmentsX, y / this.segmentsY);
                 this.positionsArray.push({ position, normal: vec3.create(0, 1, 0), uv });
                 this.previousPositionsArray.push(position);
@@ -72,8 +70,6 @@ export class ClothSimulator {
     uniformBuffer!: GPUBuffer;
     indexBuffer!: GPUBuffer;
 
-
-    
     geometryBindGroupLayout!: GPUBindGroupLayout;
     geometryBindGroup!: GPUBindGroup;
 
@@ -142,10 +138,6 @@ export class ClothSimulator {
         });
         new Uint32Array(this.indexBuffer.getMappedRange()).set(indexData);
         this.indexBuffer.unmap();
-
-
-
-
     }
 
     createBindGroup() {
@@ -194,9 +186,9 @@ export class ClothSimulator {
                 { binding: 0, resource: { buffer: this.vertexBuffer } },
                 { binding: 1, resource: { buffer: this.previousPositionBuffer } },
                 { binding: 2, resource: { buffer: this.velocityBuffer } },
-                { binding: 3, resource: { buffer: this.uniformBuffer } },            ],
+                { binding: 3, resource: { buffer: this.uniformBuffer } },
+            ],
         });
-
 
         this.geometryBindGroupLayout = renderer.device.createBindGroupLayout({
             label: "geometry bind group layout",
@@ -227,9 +219,6 @@ export class ClothSimulator {
                 },
             ],
         });
-
-
-
     }
 
     createComputePipeline() {
