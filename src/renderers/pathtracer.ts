@@ -351,14 +351,15 @@ export class Pathtracer extends renderer.Renderer {
 
     override async draw() {
         this.frameCount++;
+        
 
         let resetAccumulation = this.camera.updated;
 
         // run cloth simulation every 10 frames
-        if (this.frameCount % 1000 === 0 || this.frameCount === 1) {
+        if (this.frameCount % 20 === 0 || this.frameCount === 1) {
             const encoder = renderer.device.createCommandEncoder();
 
-                for (let i = 0; i < 250; i++) {
+                for (let i = 0; i < 50; i++) {
 
                     const computePass = encoder.beginComputePass();
                     computePass.setPipeline(this.clothSimulator.computePipeline);
@@ -377,6 +378,7 @@ export class Pathtracer extends renderer.Renderer {
                     usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
                 });
                 encoder.copyBufferToBuffer(this.clothSimulator.vertexBuffer, 0, stagingBuffer, 0, clothBufferSize);
+
 
                 renderer.device.queue.submit([encoder.finish()]);
 

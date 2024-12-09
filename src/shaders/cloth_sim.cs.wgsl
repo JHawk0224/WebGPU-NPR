@@ -7,9 +7,11 @@ struct Uniforms {
 const gravity: vec3<f32> = vec3<f32>(0.0, -9.81, 0.0);
 const timeStep: f32 = 0.016;  // ~60 FPS
 const damping: f32 = 0.99;
+const windDirection: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0); // Hard-coded wind direction
+const windStrength: f32 = 0.0; // Hard-coded wind strength
 
 var<private> constraintIterations: u32 = 15u;
-const restLength: f32 = 0.025;
+const restLength: f32 = 0.1;
 const stiffness: f32 = 0.8;
 
 @group(0) @binding(0) var<storage, read_write> vertices: Vertices;
@@ -42,7 +44,6 @@ fn projectOutsideCube(pos: ptr<function, vec3<f32>>, cubeMin: vec3<f32>, cubeMax
     let insideZ = (p.z > cubeMin.z && p.z < cubeMax.z);
 
     if (insideX && insideY && insideZ) {
-        // Find which face is closest
         let distToMinX = p.x - cubeMin.x;
         let distToMaxX = cubeMax.x - p.x;
         let distToMinY = p.y - cubeMin.y;
@@ -102,15 +103,18 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     var position = vertices.vertices[idx].position;
     var velocity = velocities[idx];
 
-    // Apply gravity & damping
+    // Apply gravity
     velocity += gravity * timeStep;
+
+    // Apply wind force
+    //velocity += windDirection * windStrength * timeStep;
+
+    // Damping
     velocity *= damping;
 
     // Predict position
-    var predictedPos = position + velocity * timeStep;
-
     var originalPos = position;
-    position = predictedPos;
+    position = position + velocity * timeStep;
 
     let gridWidth = uniforms.gridWidth;
     let x = idx % gridWidth;
@@ -190,10 +194,7 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         //position = vertices.vertices[idx].position;
     }
 
-    // FINAL HARD CORRECTION:
-    // After all constraints, if we somehow ended inside the cube, 
-    // we force the cloth out at the top face and zero out vertical velocity.
-    // because for annoying reasons if i do anything else the cloth will sink into the cube...
+    // Final correction if inside cube
     if (foundCube) {
         var p = position;
         let insideX = (p.x > cubeMin.x && p.x < cubeMax.x);
@@ -201,16 +202,16 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         let insideZ = (p.z > cubeMin.z && p.z < cubeMax.z);
 
         if (insideX && insideY && insideZ) {
-            // Force it out the top face
-            position.y = cubeMax.y + 1.0;
-            // Zero out vertical velocity since we forced it out
+            // Force out top
+            p.y = cubeMax.y;
+            position = p;
             velocity.y = 0.0;
         }
     }
 
     var finalVel = (position - originalPos) / timeStep;
 
-    // If at cube boundary, reflect horizontal and lateral velocities if pushing into cube
+    // Collision velocity reflection with braces
     if (foundCube) {
         var p = position;
         if (p.x <= cubeMin.x && finalVel.x < 0.0) {

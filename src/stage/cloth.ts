@@ -82,7 +82,7 @@ export class ClothSimulator {
     computePipeline!: GPUComputePipeline;
 
     constructor() {
-        this.clothMesh = new ClothMesh(5, 5, 200, 200);
+        this.clothMesh = new ClothMesh(5, 5, 50, 50);
 
         this.createBuffers();
         this.createBindGroup();
