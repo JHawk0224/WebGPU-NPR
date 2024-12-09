@@ -358,7 +358,7 @@ export class PathtracerNPR extends renderer.Renderer {
         if (this.frameCount % 10 === 0 || this.frameCount === 1) {
             const encoder = renderer.device.createCommandEncoder();
 
-            for (let i = 0; i < 500; i++) {
+            for (let i = 0; i < 2000; i++) {
                 const computePass = encoder.beginComputePass();
                 computePass.setPipeline(this.clothSimulator.computePipeline);
                 computePass.setBindGroup(0, this.clothSimulator.bindGroup);

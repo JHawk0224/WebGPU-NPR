@@ -5,7 +5,7 @@ struct Uniforms {
 @group(0) @binding(3) var<uniform> uniforms: Uniforms;
 
 const gravity: vec3<f32> = vec3<f32>(0.0, -9.81, 0.0);
-const timeStep: f32 = 0.016;  // ~60 FPS
+const timeStep: f32 = 0.004;  // ~60 FPS
 const damping: f32 = 0.99;
 const windDirection: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0); // Hard-coded wind direction
 const windStrength: f32 = 0.0; // Hard-coded wind strength
@@ -251,7 +251,7 @@ fn projectOutsideMesh(pos: ptr<function, vec3<f32>>, geom: ptr<storage, Geom, re
         // We have an intersection in some direction.
         // The normal should point outward, so we move the point just outside along this normal.
         // Move slightly beyond intersection point in normal direction.
-        p = bestHit.intersectionPoint + bestHit.normal * 0.001;
+        p = bestHit.intersectionPoint + bestHit.normal * 0.02;
     }
 
     *pos = p;
@@ -290,6 +290,60 @@ fn isPointInsideGeom(geom: ptr<storage, Geom, read>,
     }
 }
 
+struct CCDResult {
+    newPosition: vec3<f32>,
+    hitNormal: vec3<f32>,
+    collided: bool,
+};
+
+fn continuousCollisionCheck(
+    originalPos: vec3<f32>,
+    proposedPos: vec3<f32>,
+    vertices: ptr<storage, Vertices, read>,
+    tris: ptr<storage, Triangles, read>,
+    geoms: ptr<storage, Geoms, read>,
+    bvhNodes: ptr<storage, BVHNodes, read>
+) -> CCDResult {
+    var result: CCDResult;
+    result.newPosition = proposedPos;
+    result.hitNormal = vec3<f32>(0.0);
+    result.collided = false;
+
+    var direction = proposedPos - originalPos;
+    let dist = length(direction);
+    if (dist < 1e-10) {
+        // No significant movement
+        return result;
+    }
+
+    direction = normalize(direction);
+
+    var closestDist = dist;
+    var closestHit: HitInfo;
+    var collided = false;
+
+    var r: Ray;
+    r.origin = originalPos;
+    r.direction = direction;
+
+    for (var i = 0u; i < geoms.geomsSize; i++) {
+        let hit = intersectGeom(&geoms.geoms[i], vertices, tris, bvhNodes, r);
+        if (hit.dist > 0.0 && hit.dist < closestDist) {
+            closestDist = hit.dist;
+            closestHit = hit;
+            collided = true;
+        }
+    }
+
+    if (collided) {
+        result.newPosition = closestHit.intersectionPoint + closestHit.normal * 0.001;
+        result.hitNormal = closestHit.normal;
+        result.collided = true;
+    }
+
+    return result;
+}
+
 @compute @workgroup_size(256)
 fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let idx: u32 = GlobalInvocationID.x;
@@ -297,7 +351,13 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         return;
     }
 
-    // Initial position and velocity
+    // Use smaller timeStep and run multiple times per frame
+    let timeStep: f32 = 0.004;
+
+    // Forces and damping
+    let gravity = vec3<f32>(0.0, -9.81, 0.0);
+    let damping = 0.99;
+
     var position = vertices.vertices[idx].position;
     var velocity = velocities[idx];
 
@@ -305,13 +365,31 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     velocity += gravity * timeStep;
     velocity *= damping;
 
-    // Predict position
-    var originalPos = position;
-    position = position + velocity * timeStep;
+    let originalPos = position;
+    var proposedPos = position + velocity * timeStep;
+
+    // Continuous collision detection before constraints
+    {
+        let ccdResult = continuousCollisionCheck(originalPos, proposedPos, &sceneVertices, &tris, &geoms, &bvhNodes);
+        if (ccdResult.collided) {
+            // Adjust velocity so it doesn't push into geometry again
+            let velDotN = dot(velocity, ccdResult.hitNormal);
+            if (velDotN < 0.0) {
+                velocity -= ccdResult.hitNormal * velDotN;
+            }
+            position = ccdResult.newPosition;
+        } else {
+            position = proposedPos;
+        }
+    }
 
     let gridWidth = uniforms.gridWidth;
     let x = idx % gridWidth;
     let y = idx / gridWidth;
+
+    var constraintIterations: u32 = 15u;
+    let restLength: f32 = 0.1;
+    let diagRest = restLength * sqrt(2.0);
 
     // Constraint iterations
     for (var iter: u32 = 0; iter < constraintIterations; iter++) {
@@ -348,7 +426,6 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         }
 
         // Diagonal constraints
-        let diagRest = restLength * sqrt(2.0);
         if (x > 0u && y > 0u) {
             let diagULIdx = idx - gridWidth - 1u;
             var diagULPos = vertices.vertices[diagULIdx].position;
@@ -374,44 +451,26 @@ fn simulateCloth(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
             vertices.vertices[diagDRIdx].position = diagDRPos;
         }
 
-        // Check against all geoms and project outside if inside
+        // Check if inside any geom after constraints and push out
         for (var i = 0u; i < geoms.geomsSize; i++) {
             if (isPointInsideGeom(&geoms.geoms[i], pos, &sceneVertices, &tris, &bvhNodes)) {
                 projectOutsideGeom(&pos, &geoms.geoms[i], &sceneVertices, &tris, &bvhNodes);
+                // Zero velocity after pushing out
+                velocity = vec3<f32>(0.0);
             }
         }
 
         position = pos;
     }
 
-    // Pin top row if desired (commented out as in original)
-    // if (idx < gridWidth) {
-    //     position = vertices.vertices[idx].position;
-    // }
-
+    // (Optional) Another CCD check if desired
+    let ccdFinalCheck = continuousCollisionCheck(originalPos, position, &sceneVertices, &tris, &geoms, &bvhNodes);
     var finalVel = (position - originalPos) / timeStep;
-
-    // After final position is determined, do a final push outside any geometry again
-    for (var i = 0u; i < geoms.geomsSize; i++) {
-        if (isPointInsideGeom(&geoms.geoms[i], position, &sceneVertices, &tris, &bvhNodes)) {
-            projectOutsideGeom(&position, &geoms.geoms[i], &sceneVertices, &tris, &bvhNodes);
-        }
+    if (ccdFinalCheck.collided) {
+        position = ccdFinalCheck.newPosition;
+        finalVel = vec3<f32>(0.0);
     }
 
-    // Optional: adjust finalVel if a geometry boundary is hit.
-    // For simplicity, we won't add additional damping here unless necessary.
-    // We've already pushed the cloth outside. If you want to reflect velocities like with cube:
-    // you'd need to detect which geom you intersected and reflect accordingly.
-    // The original code did this for cube, but now we have multiple geoms.
-    // We'll do a generic approach: if after projecting out, the position changed, damp velocity.
-    if (distance(position, originalPos) < 1e-8) {
-        // no change means no collision
-    } else {
-        // If you want some reflection on collisions, you could try:
-        finalVel *= 0.5;
-    }
-
-    // Update buffers
     previousPositions[idx] = vertices.vertices[idx].position;
     vertices.vertices[idx].position = position;
     velocities[idx] = finalVel;

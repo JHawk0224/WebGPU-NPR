@@ -1004,7 +1004,7 @@ export class Scene {
             triangleCount: numMeshTriangles,
             triangleStartIdx: originalNumTriangles,
             bvhRootNodeIdx: -1,
-            objectId: this.geomDataArray.length,
+            objectId: 0,
         };
 
         geomData.bvhRootNodeIdx = this.buildBVHNode(
