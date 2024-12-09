@@ -355,10 +355,10 @@ export class PathtracerNPR extends renderer.Renderer {
         let resetAccumulation = this.camera.updated;
 
         // run cloth simulation every 10 frames
-        if (this.frameCount % 1000 === 0 || this.frameCount === 1) {
+        if (this.frameCount % 20 === 0 || this.frameCount === 1) {
             const encoder = renderer.device.createCommandEncoder();
 
-            for (let i = 0; i < 250; i++) {
+            for (let i = 0; i < 50; i++) {
                 const computePass = encoder.beginComputePass();
                 computePass.setPipeline(this.clothSimulator.computePipeline);
                 computePass.setBindGroup(0, this.clothSimulator.bindGroup);
