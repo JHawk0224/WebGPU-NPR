@@ -1,8 +1,8 @@
 ## WebGPU Pathtracer
 
-|![Skull Conference](img/skull-conference.png)|
+|![Hero's Room](img/heros_room.jpg)|
 |:--:|
-|Skull Conference|
+|Hero's Room|
 
 Authors: 
 - Alan Lee ([LinkedIn](https://www.linkedin.com/in/soohyun-alan-lee/), [Portfolio](https://www.alannos.com/))
@@ -62,9 +62,9 @@ Note that each frame is equivalent to taking a single-sample monte carlo estimat
 
 ### Non-Photorealistic Rendering
 
-|![Stylization example](img/stylization_example.JPG)|
+|![Skull Conference](img/skull_conference.JPG)|
 |:--:|
-|Example of stylization depending on path prefixes|
+|Skull Conference|
 
 Our pathtracer supports two rendering modes: regular pathtracer and pathtracer with non-photorealistic rendering (NPR). Based on a [SIGGRAPH 2024 paper](http://cv.rexwe.st/pdf/srfoe.pdf), the NPR mode performs `stylize` function on every material shader invocation.
 
@@ -79,6 +79,10 @@ Rex et al. achieves seamless integration of non-photorealistic stylization in a 
 `stylize` function is in essence an estimator function that takes in all parameters at a given point of intersection and a) determines if there should be a stylization and b) if so perform the stylization accordingly. This estimation process can be similarly thought of as applying a filter to any region that satisfies predefined conditions. The result is a robust stylization scheme that works in any physics-based environment where we can manipulate stylization on the object itself, reflections, recursive layers of scattering, and so on.
 
 Our implementation defines parameters affecting stylization consideration as `StyleContext` struct given in `common.wgsl`. By default this includes materialId, objectId, path prefix (last object hit), intersection position, intersection surface normal, incoming ray direction, and current intersection's BVH node index. This struct can be easily expanded to include additional parameters such as camera ray direction or parent object's ID that can be used inside the `stylize` function.
+
+|![Stylization example](img/stylization_example.JPG)|
+|:--:|
+|Example of stylization depending on path prefixes|
 
 ### Cloth Simulation
 

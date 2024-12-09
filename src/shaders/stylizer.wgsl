@@ -2,7 +2,7 @@ fn shouldStylize(sc : StyleContext) -> u32
 {
     // sc.params.y = objectId, z = path prefix
     // hero model .y = -1
-    if (sc.params.y > 8 || sc.params.y < 0) {
+    if (sc.params.y != 0) {
         return 0u;
     }
 
@@ -12,11 +12,6 @@ fn shouldStylize(sc : StyleContext) -> u32
 
     return 0u;
 }
-
-// fn requiredSamples(sc : StyleContext) -> u32
-// {
-//     return 32u;
-// }
 
 // full implementation should have an array of samples (array<vec3f, 32u>)
 // however, for demonstration we will only use perfect mirrors, meaning only 
@@ -66,7 +61,7 @@ fn stylizeContour(sc : StyleContext, samples : vec3f) -> vec3f
 {
     let ndotv = dot(sc.normal, sc.rayDir);
 
-    if (abs(ndotv) < 0.3) {
+    if (abs(ndotv) < 0.5) {
         return vec3f(0.0);
     }
 
