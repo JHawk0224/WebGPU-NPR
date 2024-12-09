@@ -33,12 +33,12 @@ let scene = new Scene();
 //     vec3.create(0, 1.5, 0),
 //     vec3.create(0, -Math.PI / 4, 0)
 // );
-await scene.loadGltf(
-    "./scenes/skull/skull_textures.gltf",
-    vec3.create(1.5, 1.5, 1.5),
-    vec3.create(0, 0, 0),
-    vec3.create(Math.PI, 0, (Math.PI * 3) / 2)
-);
+// await scene.loadGltf(
+//     "./scenes/skull/skull_textures.gltf",
+//     vec3.create(1.5, 1.5, 1.5),
+//     vec3.create(0, 0, 0),
+//     vec3.create(Math.PI, 0, (Math.PI * 3) / 2)
+// );
 // await scene.loadGltf(
 //     "./scenes/halo/scene.gltf",
 //     vec3.create(60, 60, 60),
