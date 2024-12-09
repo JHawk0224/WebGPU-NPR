@@ -1,6 +1,6 @@
 ## WebGPU Pathtracer
 
-|![Hero's Room](img/heros_room.jpg)|
+|![Hero's Room](img/heros_room.JPG)|
 |:--:|
 |Hero's Room|
 
