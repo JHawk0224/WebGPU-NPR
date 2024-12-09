@@ -49,7 +49,7 @@ Follow these steps to install and view the project:
 Our pathtracer consists of multiple compute shader passes and a single WebGPU render pass. For each frame, we 
 1. generate camera rays
 2. perform ray-scene intersection tests
-3. shade materials and stylize
+3. shade materials and compute updated ray direction and albedo for the next ray bounce
 4. repeat steps 2 and 3 until either no valid paths remain or maximum ray depth has been reached
 5. combine current frame's image with previous frames' accumulated result
 6. render latest combination as a render texture
@@ -79,6 +79,8 @@ Rex et al. achieves seamless integration of non-photorealistic stylization in a 
 `stylize` function is in essence an estimator function that takes in all parameters at a given point of intersection and a) determines if there should be a stylization and b) if so perform the stylization accordingly. This estimation process can be similarly thought of as applying a filter to any region that satisfies predefined conditions. The result is a robust stylization scheme that works in any physics-based environment where we can manipulate stylization on the object itself, reflections, recursive layers of scattering, and so on.
 
 Our implementation defines parameters affecting stylization consideration as `StyleContext` struct given in `common.wgsl`. By default this includes materialId, objectId, path prefix (last object hit), intersection position, intersection surface normal, incoming ray direction, and current intersection's BVH node index. This struct can be easily expanded to include additional parameters such as camera ray direction or parent object's ID that can be used inside the `stylize` function.
+
+Below is an example render where the left and right mirrors only apply grayscale filter on the first bounce to the surface while also discriminating based on which object the ray bounced off of.
 
 |![Stylization example](img/stylization_example.JPG)|
 |:--:|
