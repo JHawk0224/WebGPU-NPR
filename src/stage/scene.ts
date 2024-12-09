@@ -1121,17 +1121,17 @@ export class Scene {
 
         // A cube
         const identityMat4 = mat4.identity();
-        this.geomDataArray.push({
-            transform: identityMat4,
-            inverseTransform: identityMat4,
-            invTranspose: identityMat4,
-            geomType: 0,
-            materialId: materialsLength + 4,
-            triangleCount: 0,
-            triangleStartIdx: -1,
-            bvhRootNodeIdx: -1,
-            objectId: objectsLength,
-        });
+        // this.geomDataArray.push({
+        //     transform: identityMat4,
+        //     inverseTransform: identityMat4,
+        //     invTranspose: identityMat4,
+        //     geomType: 0,
+        //     materialId: materialsLength + 4,
+        //     triangleCount: 0,
+        //     triangleStartIdx: -1,
+        //     bvhRootNodeIdx: -1,
+        //     objectId: objectsLength,
+        // });
 
         // Floor
         let scaleMat4 = mat4.scaling([30, 0.05, 30]);

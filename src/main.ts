@@ -45,6 +45,12 @@ let scene = new Scene();
 //     vec3.create(0, -2, 0),
 //     vec3.create(0, Math.PI / 4, 0)
 // );
+await scene.loadGltf(
+    "./scenes/cis5650/cis5650.gltf",
+    vec3.create(1.25, 1.25, 1.25),
+    vec3.create(-0.75, 0, 0.75),
+    vec3.create(Math.PI / 4, Math.PI / 4, 0)
+);
 
 const camera = new Camera();
 
