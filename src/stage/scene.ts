@@ -778,10 +778,10 @@ export class Scene {
         textureDataBuffer.unmap();
 
         // Texture Descriptors Buffer
-        const descriptorsData = new Uint32Array(this.textureDescriptors.length * 8);
+        const descriptorsData = new Uint32Array(this.textureDescriptors.length * 7);
         for (let i = 0; i < this.textureDescriptors.length; i++) {
             const desc = this.textureDescriptors[i];
-            const offset = i * 8;
+            const offset = i * 7;
             descriptorsData[offset + 0] = desc.width;
             descriptorsData[offset + 1] = desc.height;
             descriptorsData[offset + 2] = desc.offset;
@@ -789,7 +789,6 @@ export class Scene {
             descriptorsData[offset + 4] = desc.wrapT;
             descriptorsData[offset + 5] = desc.minFilter;
             descriptorsData[offset + 6] = desc.magFilter;
-            descriptorsData[offset + 7] = 0;
         }
 
         const descriptorsBuffer = device.createBuffer({
