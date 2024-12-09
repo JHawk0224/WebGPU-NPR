@@ -115,22 +115,16 @@ struct HitInfo
 }
 
 struct CameraUniforms {
-    viewproj : mat4x4f,
-    view : mat4x4f,
-    proj : mat4x4f,
-    projInv : mat4x4f,
     front : vec3<f32>,
     numFrames : u32,
     up : vec3<f32>,
+    counter : u32,
     right : vec3<f32>,
-    depth : f32,
-    nearFar : vec2<f32>,
+    depth : u32,
+    cameraPos : vec3<f32>,
+    seed : vec3u,
     resolution : vec2<f32>,
     pixelLength : vec2<f32>,
-    cameraPos : vec3<f32>,
-    numSamples : f32,
-    seed : vec3u,
-    counter : u32,
 }
 
 struct StyleContext {

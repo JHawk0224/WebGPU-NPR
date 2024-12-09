@@ -1,98 +1,64 @@
 import { Mat4, mat4, Vec2, vec2, Vec3, vec3 } from "wgpu-matrix";
 import { toRadians } from "../math_util";
-import { device, canvas, fovYDegrees, aspectRatio } from "../renderer";
+import { device, canvas, fovYDegrees } from "../renderer";
 
 class CameraUniforms {
-    readonly buffer = new ArrayBuffer(368);
+    readonly buffer = new ArrayBuffer(96);
     private readonly floatView = new Float32Array(this.buffer);
     private readonly uintView = new Uint32Array(this.buffer);
 
-    set viewProjMat(mat: Float32Array) {
-        for (let i = 0; i < 16; i++) {
-            this.floatView[i] = mat[i];
-        }
-    }
-
-    set viewMat(mat: Float32Array) {
-        for (let i = 0; i < 16; i++) {
-            this.floatView[i + 16] = mat[i];
-        }
-    }
-
-    set projMat(mat: Float32Array) {
-        for (let i = 0; i < 16; i++) {
-            this.floatView[i + 32] = mat[i];
-        }
-    }
-
-    set projInvMat(mat: Float32Array) {
-        for (let i = 0; i < 16; i++) {
-            this.floatView[i + 48] = mat[i];
-        }
-    }
-
     set front(front: Vec3) {
         for (let i = 0; i < 3; i++) {
-            this.floatView[i + 64] = front[i];
+            this.floatView[i + 0] = front[i];
         }
     }
 
     set numFrames(numFrames: u32) {
-        this.uintView[67] = numFrames;
+        this.uintView[3] = numFrames;
     }
 
     set up(up: Vec3) {
         for (let i = 0; i < 3; i++) {
-            this.floatView[i + 68] = up[i];
+            this.floatView[i + 4] = up[i];
         }
+    }
+
+    set counter(counter: u32) {
+        this.uintView[7] = counter;
     }
 
     set right(right: Vec3) {
         for (let i = 0; i < 3; i++) {
-            this.floatView[i + 72] = right[i];
+            this.floatView[i + 8] = right[i];
         }
     }
 
-    set depth(depth: f32) {
-        this.floatView[75] = depth;
+    set depth(depth: u32) {
+        this.uintView[11] = depth;
     }
 
-    set nearFar(nearFar: Vec2) {
-        for (let i = 0; i < 2; i++) {
-            this.floatView[i + 76] = nearFar[i];
+    set cameraPos(cameraPos: Vec3) {
+        for (let i = 0; i < 3; i++) {
+            this.floatView[i + 12] = cameraPos[i];
+        }
+    }
+
+    set seed(seed: Vec3) {
+        for (let i = 0; i < 3; i++) {
+            this.floatView[i + 16] = seed[i];
         }
     }
 
     set resolution(resolution: Vec2) {
         for (let i = 0; i < 2; i++) {
-            this.floatView[i + 78] = resolution[i];
+            this.floatView[i + 20] = resolution[i];
         }
     }
 
     set pixelLength(pixelLength: Vec2) {
         for (let i = 0; i < 2; i++) {
-            this.floatView[i + 80] = pixelLength[i];
+            this.floatView[i + 22] = pixelLength[i];
         }
-    }
-
-    set cameraPos(cameraPos: Vec3) {
-        for (let i = 0; i < 3; i++) {
-            this.floatView[i + 84] = cameraPos[i];
-        }
-    }
-
-    set numSamples(numSamples: f32) {
-        this.floatView[87] = numSamples;
-    }
-
-    set seed(seed: Vec3) {
-        for (let i = 0; i < 3; i++) {
-            this.floatView[i + 88] = seed[i];
-        }
-    }
-
-    set counter(counter: u32) {
-        this.floatView[91] = counter;
     }
 }
 
@@ -115,7 +81,6 @@ export class Camera {
 
     rayDepth: number = 8;
     samples: number = 1;
-    randCounter: number = 0;
     updated: boolean = true;
 
     keys: { [key: string]: boolean } = {};
@@ -127,14 +92,9 @@ export class Camera {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-        this.projMat = mat4.perspective(toRadians(fovYDegrees), aspectRatio, Camera.nearPlane, Camera.farPlane);
-        this.uniforms.projMat = this.projMat;
-        this.uniforms.projInvMat = mat4.inverse(this.projMat);
-        this.uniforms.nearFar = vec2.create(Camera.nearPlane, Camera.farPlane);
         this.uniforms.resolution = vec2.create(canvas.width, canvas.height);
         this.uniforms.depth = this.rayDepth;
-        this.uniforms.numSamples = this.samples;
-        this.uniforms.counter = this.randCounter;
+        this.uniforms.counter = 0;
 
         let yscaled = Math.tan(fovYDegrees * (Math.PI / 180));
         let xscaled = (yscaled * canvas.width) / canvas.height;
@@ -227,11 +187,6 @@ export class Camera {
     onFrame(deltaTime: number) {
         this.processInput(deltaTime);
 
-        const lookPos = vec3.add(this.cameraPos, vec3.scale(this.cameraFront, 1));
-        const viewMat = mat4.lookAt(this.cameraPos, lookPos, [0, 1, 0]);
-        const viewProjMat = mat4.mul(this.projMat, viewMat);
-        this.uniforms.viewProjMat = viewProjMat;
-        this.uniforms.viewMat = viewMat;
         this.uniforms.front = this.cameraFront;
         this.uniforms.up = this.cameraUp;
         this.uniforms.right = this.cameraRight;
@@ -246,8 +201,7 @@ export class Camera {
     }
 
     updateCameraUniformsCounter() {
-        this.randCounter += 1;
-        this.uniforms.counter = this.randCounter;
+        this.uniforms.counter = this.uniforms.counter;
         device.queue.writeBuffer(this.uniformsBuffer, 0, this.uniforms.buffer);
     }
 
